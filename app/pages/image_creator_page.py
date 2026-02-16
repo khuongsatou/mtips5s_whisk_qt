@@ -250,8 +250,9 @@ class ImageCreatorPage(QWidget):
         self._toolbar.run_all.connect(self._on_run_all)
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
 
-        # Table download
+        # Table download + open folder
         self._table.download_clicked.connect(self._on_download)
+        self._table.open_folder_clicked.connect(self._on_open_folder)
 
     def refresh_data(self):
         """Reload the queue from API."""
@@ -394,6 +395,12 @@ class ImageCreatorPage(QWidget):
             )
             self._workflow_id = workflow_id
             logger.info(f"Workflow linked: {workflow_id} → flow {self._active_flow_id}")
+
+            # Auto-add to queue if prompts exist
+            prompt_text = self._config._prompt_input.toPlainText().strip()
+            if prompt_text:
+                logger.info("Auto-adding prompts to queue after workflow link")
+                self._config._on_add()
         else:
             self._config.set_workflow_status(
                 f"⚠️ Created but link failed:\n{link_resp.message}"
@@ -611,6 +618,38 @@ class ImageCreatorPage(QWidget):
             self, "✅ Saved",
             f"Saved {saved} image(s) to:\n{folder}",
         )
+
+    # ── Open Folder ──────────────────────────────────────────────────
+
+    def _on_open_folder(self, task_id: str):
+        """Handle 📂 button — open output folder in system file manager."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        task_resp = self.api.get_task(task_id)
+        if not task_resp.success:
+            return
+
+        task_data = task_resp.data
+
+        # Try output_folder first, then derive from output_images
+        folder = task_data.get("output_folder", "")
+        if not folder or not os.path.isdir(folder):
+            output_images = task_data.get("output_images", [])
+            if output_images:
+                folder = os.path.dirname(output_images[0])
+
+        if not folder or not os.path.isdir(folder):
+            # Fallback to default download folder
+            folder = os.path.join(os.path.expanduser("~"), "Downloads", "whisk_pro")
+
+        if os.path.isdir(folder):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
+        else:
+            StyledMessageBox.information(
+                self, "Info",
+                self.translator.t("queue.folder_not_found"),
+            )
 
     def retranslate(self):
         """Refresh data after language change to update status labels."""

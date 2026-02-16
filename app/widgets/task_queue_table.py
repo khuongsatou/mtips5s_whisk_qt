@@ -171,6 +171,7 @@ class TaskQueueTable(QTableWidget):
     task_selected = Signal(list)     # Emits list of selected task IDs
     ref_images_changed = Signal(str, list)  # task_id, new paths
     download_clicked = Signal(str)   # task_id
+    open_folder_clicked = Signal(str)  # task_id
 
     COLUMNS = [
         ("", 40),           # Checkbox
@@ -405,6 +406,15 @@ class TaskQueueTable(QTableWidget):
                     lambda checked, tid=task_id: self.download_clicked.emit(tid)
                 )
                 action_row.addWidget(dl_btn)
+
+                folder_btn = QPushButton("📂")
+                folder_btn.setObjectName("action_icon_btn")
+                folder_btn.setFixedSize(28, 28)
+                folder_btn.setToolTip(self.translator.t("queue.open_folder"))
+                folder_btn.clicked.connect(
+                    lambda checked, tid=task_id: self.open_folder_clicked.emit(tid)
+                )
+                action_row.addWidget(folder_btn)
 
                 progress_layout.addLayout(action_row)
 

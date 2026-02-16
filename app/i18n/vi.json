@@ -43,6 +43,7 @@
     "queue.message": "Thông báo",
     "queue.download": "Tải xuống",
     "queue.open_folder": "Mở thư mục",
+    "queue.folder_not_found": "Không tìm thấy thư mục đầu ra.",
 
     "toolbar.add_row": "Thêm dòng",
     "toolbar.add_images": "Thêm ảnh",

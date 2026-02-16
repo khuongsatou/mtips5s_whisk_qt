@@ -43,6 +43,7 @@
     "queue.message": "Message",
     "queue.download": "Download",
     "queue.open_folder": "Open Folder",
+    "queue.folder_not_found": "Output folder not found.",
 
     "toolbar.add_row": "Add row",
     "toolbar.add_images": "Add images",
