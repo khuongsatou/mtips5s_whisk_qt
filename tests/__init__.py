@@ -1,0 +1,1 @@
+"""Whisk Desktop — Tests package."""

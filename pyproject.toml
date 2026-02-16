@@ -1,0 +1,13 @@
+[project]
+name = "whisk-desktop"
+version = "1.0.0"
+description = "A modern PySide6 desktop application with triadic theming, i18n, and mock API"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[project.scripts]
+whisk = "main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"

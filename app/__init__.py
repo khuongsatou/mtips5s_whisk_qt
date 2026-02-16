@@ -1,0 +1,1 @@
+"""Whisk Desktop — App package."""

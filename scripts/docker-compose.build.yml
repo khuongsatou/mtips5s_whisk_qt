@@ -1,0 +1,28 @@
+# ============================================================
+# Whisk Desktop — Docker Compose for Windows .exe build
+# ============================================================
+# Usage:
+#   docker compose -f scripts/docker-compose.build.yml up --build
+#
+# Output:
+#   dist/WhiskDesktop/WhiskDesktop.exe
+# ============================================================
+
+services:
+  build-win:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile.win
+    platform: linux/amd64
+    volumes:
+      - ../dist:/output
+    environment:
+      - WINEDEBUG=-all
+    command: >
+      bash -c "
+        echo '✅ Copying output...' &&
+        cp -r /src/dist/WhiskDesktop /output/ &&
+        echo '========================================' &&
+        echo ' Output: dist/WhiskDesktop/WhiskDesktop.exe' &&
+        echo '========================================'
+      "

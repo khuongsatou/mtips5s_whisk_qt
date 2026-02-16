@@ -1,0 +1,19 @@
+# ============================================================
+# Whisk Desktop — Windows .exe cross-build from macOS/Linux
+# Uses Wine + Python inside Docker to run PyInstaller
+# ============================================================
+FROM --platform=linux/amd64 tobix/pywine:3.11
+
+ENV WINEDEBUG=-all
+ENV WINEPY="wine /opt/wineprefix/drive_c/Python/python.exe"
+
+WORKDIR /src
+
+# Copy project
+COPY . .
+
+# Install deps and build with correct Wine Python path
+RUN $WINEPY -m pip install --no-cache-dir PySide6 pyinstaller && \
+    $WINEPY -m PyInstaller build.spec --clean --noconfirm
+
+CMD ["echo", "Build complete"]
