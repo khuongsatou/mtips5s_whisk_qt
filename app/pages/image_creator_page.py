@@ -1,8 +1,8 @@
 """
 Whisk Desktop — Image Creator Page.
 
-Main page that assembles ConfigPanel + TaskQueueTable + QueueToolbar.
-Background image generation with real-time progress tracking.
+Full-featured page: left config panel, right table + toolbar.
+Background worker generates images via WorkflowApiClient and saves to disk.
 """
 import base64
 import logging
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
     QFileDialog,
 )
-from PySide6.QtCore import Qt, QThread, Signal as QSignal, QTimer
+from PySide6.QtCore import Qt, QThread, Signal as QSignal, QTimer, QSettings
 from app.widgets.config_panel import ConfigPanel
 from app.widgets.task_queue_table import TaskQueueTable
 from app.widgets.queue_toolbar import QueueToolbar
@@ -44,6 +44,7 @@ class GenerationWorker(QThread):
         tasks: list,
         concurrency: int = 2,
         workflow_name: str = "",
+        flow_name: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -51,6 +52,7 @@ class GenerationWorker(QThread):
         self.google_token = google_token
         self.workflow_id = workflow_id
         self.workflow_name = workflow_name
+        self.flow_name = flow_name
         self.tasks = tasks
         self.concurrency = max(1, concurrency)
         self._stop_flag = False
@@ -127,8 +129,16 @@ class GenerationWorker(QThread):
                         )
                         if self.workflow_name:
                             # Sanitize project name for filesystem
-                            safe_name = self.workflow_name.replace("/", "_").replace(":", "_").strip()
-                            save_folder = os.path.join(base, safe_name)
+                            safe_wf = self.workflow_name.replace("/", "_").replace(":", "_").strip()
+                            if self.flow_name:
+                                safe_flow = self.flow_name.replace("/", "_").replace(":", "_").strip()
+                                folder_name = f"{safe_flow}_{safe_wf}"
+                            else:
+                                folder_name = safe_wf
+                            save_folder = os.path.join(base, folder_name)
+                        elif self.flow_name:
+                            safe_flow = self.flow_name.replace("/", "_").replace(":", "_").strip()
+                            save_folder = os.path.join(base, safe_flow)
                         else:
                             save_folder = base
                     else:
@@ -190,15 +200,17 @@ class ImageCreatorPage(QWidget):
     """Main image creator page with config panel, queue table, and toolbar."""
 
     def __init__(self, translator, api, parent=None,
-                 workflow_api=None, cookie_api=None, active_flow_id=None):
+                 workflow_api=None, cookie_api=None, active_flow_id=None,
+                 flow_name: str = ""):
         super().__init__(parent)
         self.translator = translator
         self.api = api
         self.workflow_api = workflow_api
         self.cookie_api = cookie_api
         self._active_flow_id = active_flow_id
+        self._flow_name: str = flow_name  # Project/flow name (e.g., "accc")
         self._workflow_id: str = ""  # Set during workflow creation or loaded from server
-        self._workflow_name: str = ""  # Project name for default save subfolder
+        self._workflow_name: str = ""  # Workflow name from Labs (e.g., "Whisk: 2/16/26")
         self.translator.language_changed.connect(self.retranslate)
         self._selected_ids: list[str] = []
         self._is_generating = False
@@ -210,11 +222,46 @@ class ImageCreatorPage(QWidget):
         self._progress_timer.timeout.connect(self._tick_progress)
         self._setup_ui()
         self._connect_signals()
+        # Restore persisted workflow if flow_id is known
+        if self._active_flow_id:
+            self._load_workflow(self._active_flow_id)
         self.refresh_data()
 
     def set_active_flow_id(self, flow_id):
         """Update the active flow ID (called when project changes)."""
         self._active_flow_id = int(flow_id) if flow_id else None
+        # Restore persisted workflow for this flow
+        if self._active_flow_id:
+            self._load_workflow(self._active_flow_id)
+
+    # ── Workflow Persistence ─────────────────────────────────────────
+
+    def _save_workflow(self, flow_id: int, workflow_id: str, workflow_name: str):
+        """Persist workflow data to QSettings keyed by flow_id."""
+        s = QSettings("Whisk", "Workflows")
+        s.setValue(f"flow_{flow_id}/workflow_id", workflow_id)
+        s.setValue(f"flow_{flow_id}/workflow_name", workflow_name)
+        s.sync()
+        logger.info(f"💾 Workflow saved: flow={flow_id} → {workflow_id}")
+
+    def _load_workflow(self, flow_id: int):
+        """Restore workflow data from QSettings for the given flow_id."""
+        s = QSettings("Whisk", "Workflows")
+        wf_id = s.value(f"flow_{flow_id}/workflow_id", "")
+        wf_name = s.value(f"flow_{flow_id}/workflow_name", "")
+
+        if wf_id:
+            self._workflow_id = wf_id
+            self._workflow_name = wf_name
+            logger.info(f"📂 Workflow restored: flow={flow_id} → {wf_id}")
+            # Update config panel to show linked status
+            if hasattr(self, "_config"):
+                self._config.set_workflow_status(
+                    f"✅ Workflow linked\n{wf_id[:16]}..."
+                )
+        else:
+            self._workflow_id = ""
+            self._workflow_name = ""
 
     def _setup_ui(self):
         outer = QHBoxLayout(self)
@@ -274,6 +321,7 @@ class ImageCreatorPage(QWidget):
         self._toolbar.run_selected.connect(self._on_run_selected)
         self._toolbar.run_all.connect(self._on_run_all)
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
+        self._toolbar.download_all.connect(self._on_download_all)
 
         # Table download + open folder
         self._table.download_clicked.connect(self._on_download)
@@ -396,13 +444,40 @@ class ImageCreatorPage(QWidget):
         )
 
         if not keys_resp.success or not keys_resp.data:
-            self._config.set_workflow_status("❌ No cookies available.\nAdd a WHISK cookie first.")
+            self._config.set_workflow_status("❌ No cookies available.\nAdd a WHISK cookie first.", error=True)
             return
 
         items = keys_resp.data.get("items", [])
         if not items:
-            self._config.set_workflow_status("❌ No active cookies found.\nAdd a WHISK cookie first.")
+            self._config.set_workflow_status("❌ No active cookies found.\nAdd a WHISK cookie first.", error=True)
             return
+
+        # Filter out expired cookies
+        from datetime import datetime
+        now = datetime.utcnow()
+        live_items = []
+        for item in items:
+            expired_str = item.get("expired", "")
+            if expired_str:
+                try:
+                    expired_dt = datetime.fromisoformat(expired_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                    if expired_dt < now:
+                        continue  # Skip expired cookie
+                except (ValueError, TypeError):
+                    pass
+            live_items.append(item)
+
+        if not live_items:
+            # Show last expired time for context
+            last_expired = items[0].get("expired", "N/A")
+            label = items[0].get("label", "")
+            self._config.set_workflow_status(
+                f"❌ All cookies expired!\n{label}\nExpired: {last_expired}\nAdd a new cookie.",
+                error=True,
+            )
+            return
+
+        items = live_items
 
         cookie = items[0]
         metadata = cookie.get("metadata", {})
@@ -437,6 +512,7 @@ class ImageCreatorPage(QWidget):
             )
             self._workflow_id = workflow_id
             self._workflow_name = workflow_name
+            self._save_workflow(self._active_flow_id, workflow_id, workflow_name)
             logger.info(f"🔗 Workflow linked: {workflow_id} → flow {self._active_flow_id}")
 
             # Auto-add to queue if prompts exist
@@ -534,6 +610,7 @@ class ImageCreatorPage(QWidget):
             tasks=pending,
             concurrency=concurrency,
             workflow_name=self._workflow_name,
+            flow_name=self._flow_name,
             parent=self,
         )
         self._worker.task_progress.connect(self._on_task_progress)
@@ -668,10 +745,59 @@ class ImageCreatorPage(QWidget):
             saved += 1
             logger.info(f"💾 Saved: {dst_path}")
 
-        StyledMessageBox.information(
-            self, "✅ Saved",
-            f"Saved {saved} image(s) to:\n{folder}",
+        logger.info(f"✅ Saved {saved} image(s) to: {folder}")
+
+    # ── Download All ─────────────────────────────────────────────────
+
+    def _on_download_all(self):
+        """Handle 📥 button — copy all completed output images to user-chosen folder."""
+        # Gather all completed tasks with output images
+        queue_resp = self.api.get_queue()
+        if not queue_resp.success:
+            return
+
+        all_tasks = queue_resp.data or []
+        completed = [
+            t for t in all_tasks
+            if t.get("status") == "completed" and t.get("output_images")
+        ]
+
+        if not completed:
+            StyledMessageBox.information(
+                self, "Info",
+                self.translator.t("download.no_images"),
+            )
+            return
+
+        # Ask user for destination folder
+        folder = QFileDialog.getExistingDirectory(
+            self, self.translator.t("toolbar.download_all"),
+            os.path.expanduser("~/Downloads"),
         )
+        if not folder:
+            return
+
+        saved = 0
+        for task_data in completed:
+            prefix = task_data.get("filename_prefix", "")
+            stt = task_data.get("stt", 0)
+            for idx, src_path in enumerate(task_data.get("output_images", [])):
+                if not os.path.isfile(src_path):
+                    continue
+                parts = []
+                if prefix:
+                    parts.append(prefix)
+                parts.append(f"{stt:03d}")
+                if idx > 0:
+                    parts.append(f"{idx + 1}")
+                ext = os.path.splitext(src_path)[1] or ".png"
+                filename = "_".join(parts) + ext
+                dst_path = os.path.join(folder, filename)
+                shutil.copy2(src_path, dst_path)
+                saved += 1
+                logger.info(f"📥 Downloaded: {dst_path}")
+
+        logger.info(f"✅ Downloaded {saved} image(s) to: {folder}")
 
     # ── Open Folder ──────────────────────────────────────────────────
 
@@ -697,8 +823,16 @@ class ImageCreatorPage(QWidget):
             # Fallback to default download folder with project name
             base = os.path.join(os.path.expanduser("~"), "Downloads", "whisk_pro")
             if self._workflow_name:
-                safe_name = self._workflow_name.replace("/", "_").replace(":", "_").strip()
-                folder = os.path.join(base, safe_name)
+                safe_wf = self._workflow_name.replace("/", "_").replace(":", "_").strip()
+                if self._flow_name:
+                    safe_flow = self._flow_name.replace("/", "_").replace(":", "_").strip()
+                    folder_name = f"{safe_flow}_{safe_wf}"
+                else:
+                    folder_name = safe_wf
+                folder = os.path.join(base, folder_name)
+            elif self._flow_name:
+                safe_flow = self._flow_name.replace("/", "_").replace(":", "_").strip()
+                folder = os.path.join(base, safe_flow)
             else:
                 folder = base
 

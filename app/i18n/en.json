@@ -53,6 +53,7 @@
     "toolbar.retry_errors": "Retry errors",
     "toolbar.run_selected": "Run selected",
     "toolbar.run_all": "All",
+    "toolbar.download_all": "Download all",
     "toolbar.confirm_delete": "Are you sure you want to delete the selected items?",
     "toolbar.confirm_delete_all": "Are you sure you want to delete all items?",
 
@@ -178,5 +179,6 @@
     "login.empty_key": "Please enter a key code",
     "login.welcome_back": "Welcome back",
     "login.logout": "Logout",
-    "login.forgot_key": "Forgot key code? Contact Admin"
+    "login.forgot_key": "Forgot key code? Contact Admin",
+    "download.no_images": "No generated images to download."
 }

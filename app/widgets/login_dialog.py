@@ -138,19 +138,55 @@ class LoginDialog(QDialog):
             return
 
         self._login_btn.setEnabled(False)
-        self._login_btn.setText(self.translator.t("login.logging_in"))
+        self._key_input.setEnabled(False)
         self._status_label.setVisible(False)
 
-        # Process events to update UI before blocking call
-        from PySide6.QtCore import QCoreApplication
-        QCoreApplication.processEvents()
+        # Start loading animation
+        self._loading_dots = 0
+        self._loading_base = self.translator.t("login.logging_in")
+        self._login_btn.setText(f"⏳ {self._loading_base}")
 
-        success, message = self.auth_manager.login(key_code)
+        from PySide6.QtCore import QTimer
+        self._loading_timer = QTimer(self)
+        self._loading_timer.timeout.connect(self._animate_loading)
+        self._loading_timer.start(400)
+
+        # Run login in background thread
+        from PySide6.QtCore import QThread, Signal as TSignal
+
+        class LoginWorker(QThread):
+            finished = TSignal(bool, str)
+
+            def __init__(self, auth_manager, key_code):
+                super().__init__()
+                self._auth = auth_manager
+                self._key = key_code
+
+            def run(self):
+                success, message = self._auth.login(self._key)
+                self.finished.emit(success, message)
+
+        self._worker = LoginWorker(self.auth_manager, key_code)
+        self._worker.finished.connect(self._on_login_finished)
+        self._worker.start()
+
+    def _animate_loading(self):
+        """Animate dots on login button while waiting."""
+        self._loading_dots = (self._loading_dots + 1) % 4
+        dots = "." * self._loading_dots
+        self._login_btn.setText(f"⏳ {self._loading_base}{dots}")
+
+    def _on_login_finished(self, success: bool, message: str):
+        """Handle login result from background thread."""
+        # Stop animation
+        if hasattr(self, '_loading_timer'):
+            self._loading_timer.stop()
+
+        self._key_input.setEnabled(True)
 
         if success:
             self._show_status(f"✅ {message}", error=False)
             self.login_success.emit(self.auth_manager.session)
-            # Close dialog after brief moment
             from PySide6.QtCore import QTimer
             QTimer.singleShot(800, self.accept)
         else:

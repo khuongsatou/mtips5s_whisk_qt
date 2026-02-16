@@ -68,6 +68,7 @@ class ConfigPanel(QWidget):
 
         self._add_btn = QPushButton(f"➕ {self.translator.t('config.add_to_queue')}")
         self._add_btn.setObjectName("primary_button")
+        self._add_btn.setEnabled(False)  # Disabled until workflow is linked
         self._add_btn.clicked.connect(self._on_add)
         btn_row.addWidget(self._add_btn, 2)
 
@@ -238,6 +239,10 @@ class ConfigPanel(QWidget):
 
         self._selected_quality = "1K"
         self._quality_buttons[0].setChecked(True)
+        # Disable HD and Ultra — not available yet
+        for i, val in enumerate(self._quality_values):
+            if val in ("2K", "4K"):
+                self._quality_buttons[i].setEnabled(False)
         self._model_section.add_widget(quality_container)
 
         # Aspect ratio selector
@@ -258,7 +263,6 @@ class ConfigPanel(QWidget):
             ("16:9", "16:9", 16, 9),
             ("9:16", "9:16", 9, 16),
             ("1:1",  "1:1",  1, 1),
-            ("4:3",  "4:3",  4, 3),
         ]
 
         for label, value, w_ratio, h_ratio in ratio_defs:
@@ -734,9 +738,7 @@ class ConfigPanel(QWidget):
         # Aspect ratio
         self._selected_ratio = "16:9"
         for i, val in enumerate(self._ratio_values):
-            if val == "16:9":
-                self._ratio_buttons[i].setChecked(True)
-                break
+            self._ratio_buttons[i].setChecked(val == "16:9")
         # Spinners
         self._images_spin.setValue(1)
         self._concurrency_spin.setValue(1)
@@ -788,6 +790,9 @@ class ConfigPanel(QWidget):
             else "color: #27ae60; padding: 4px;"
         )
         self._workflow_status.setVisible(bool(text))
+        # Enable "Add to queue" button when workflow is linked
+        is_linked = "✅" in text
+        self._add_btn.setEnabled(is_linked)
 
     def set_workflow_btn_enabled(self, enabled: bool):
         """Enable/disable the New Workflow button."""

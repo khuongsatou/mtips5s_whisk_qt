@@ -1,166 +1,273 @@
 """
-Tests for Cookie / API-Key API integration (models + mock API).
+Tests for CookieApiClient — cookie/api-key CRUD with mocked HTTP.
 """
+import json
 import pytest
-from app.api.mock_api import MockApi
-from app.api.models import ApiKeyItem, ApiResponse
+from io import BytesIO
+from unittest.mock import patch, MagicMock
+from app.api.cookie_api import CookieApiClient
 
 
-class TestApiKeyItem:
-    """Tests for ApiKeyItem dataclass."""
-
-    def test_defaults(self):
-        item = ApiKeyItem()
-        assert item.provider == "WHISK"
-        assert item.status == "active"
-        assert item.error is False
-
-    def test_to_dict_roundtrip(self):
-        item = ApiKeyItem(
-            id=4298,
-            label="WHISK - test@example.com",
-            provider="WHISK",
-            flow_id=122,
-        )
-        d = item.to_dict()
-        restored = ApiKeyItem.from_dict(d)
-        assert restored.id == 4298
-        assert restored.label == "WHISK - test@example.com"
-        assert restored.provider == "WHISK"
-        assert restored.flow_id == 122
-
-    def test_from_server_response(self):
-        """Parse actual server response format."""
-        server_data = {
-            "id": 4298,
-            "label": "VEO3_V2 - test@gmail.com - 2/15/2026",
-            "value": "ya29.mock_token",
-            "provider": "WHISK",
-            "status": "active",
-            "billing_type": "free",
-            "credit": 0.0,
-            "requests": 0,
-            "limit_requests": 0,
-            "flow_id": 122,
-            "user_id": 246,
-            "error": False,
-            "msg_error": None,
-            "expired": "2026-02-15T23:17:16",
-            "deleted_at": None,
-            "metadata": {
-                "cookies": {"__Secure-next-auth.session-token": "xxx"},
-                "user_email": "test@gmail.com",
-                "user_name": "Test User",
-            },
-            "createdAt": "2026-02-15T16:19:15",
-        }
-        item = ApiKeyItem.from_dict(server_data)
-        assert item.id == 4298
-        assert item.provider == "WHISK"
-        assert item.flow_id == 122
-        assert item.metadata["user_email"] == "test@gmail.com"
-        assert item.expired == "2026-02-15T23:17:16"
+def _mock_response(body: dict, status: int = 200):
+    resp = MagicMock()
+    resp.status = status
+    resp.read.return_value = json.dumps(body).encode("utf-8")
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    return resp
 
 
-class TestMockCookieApi:
-    """Tests for mock cookie/api-key API methods."""
+def _make_http_error(code: int, body: dict | str = ""):
+    import urllib.error
+    if isinstance(body, dict):
+        body = json.dumps(body)
+    return urllib.error.HTTPError(
+        url="http://test", code=code, msg="Error",
+        hdrs={}, fp=BytesIO(body.encode("utf-8")),
+    )
 
-    @pytest.fixture
-    def api(self):
-        return MockApi()
 
-    def test_test_server_cookie(self, api):
-        resp = api.test_server_cookie({
-            "cookies": {"__Secure-next-auth.session-token": "xxx"},
-            "label": "Test",
-            "flow_id": 122,
-            "provider": "WHISK",
+class TestCookieApiInit:
+    def test_default_token(self):
+        c = CookieApiClient()
+        assert c._access_token == ""
+
+    def test_custom_token(self):
+        c = CookieApiClient(access_token="tok")
+        assert c._access_token == "tok"
+
+    def test_set_access_token(self):
+        c = CookieApiClient()
+        c.set_access_token("new")
+        assert c._access_token == "new"
+
+    def test_headers(self):
+        c = CookieApiClient(access_token="t")
+        h = c._headers()
+        assert "Bearer t" in h["Authorization"]
+
+    def test_headers_with_content_type(self):
+        c = CookieApiClient(access_token="t")
+        h = c._headers(with_content_type=True)
+        assert h["Content-Type"] == "application/json"
+
+
+class TestCookieApiTestCookie:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_test_cookie_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({
+            "ok": True, "user_email": "test@test.com", "user_name": "Test",
         })
-        assert resp.success is True
-        assert resp.data["ok"] is True
-        assert resp.data["status"] == "active"
-        assert resp.data["provider_info"]["token_match"] is True
+        c = CookieApiClient(access_token="tok")
+        result = c.test_cookie({"cookies": {}, "label": "l", "flow_id": 1})
+        assert result.success is True
 
-    def test_save_server_cookie(self, api):
-        resp = api.save_server_cookie({
-            "cookies": {"__Secure-next-auth.session-token": "xxx"},
-            "label": "WHISK - test@gmail.com",
-            "flow_id": 122,
-            "create_new": True,
-        })
-        assert resp.success is True
-        assert resp.data["status"] == "ok"
-        assert "api_key" in resp.data
-        assert resp.data["api_key"]["provider"] == "WHISK"
-        assert resp.data["api_key"]["flow_id"] == 122
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_test_cookie_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(401, {"message": "Unauthorized"})
+        c = CookieApiClient(access_token="tok")
+        result = c.test_cookie({"cookies": {}})
+        assert result.success is False
 
-    def test_get_api_keys_empty(self, api):
-        resp = api.get_api_keys(flow_id=122)
-        assert resp.success is True
-        assert resp.data["items"] == []
-        assert resp.data["total"] == 0
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_test_cookie_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+        c = CookieApiClient(access_token="tok")
+        result = c.test_cookie({"cookies": {}})
+        assert result.success is False
 
-    def test_get_api_keys_after_save(self, api):
-        api.save_server_cookie({
-            "cookies": {"token": "abc"},
-            "label": "key1",
-            "flow_id": 122,
-            "provider": "WHISK",
-        })
-        api.save_server_cookie({
-            "cookies": {"token": "def"},
-            "label": "key2",
-            "flow_id": 122,
-            "provider": "WHISK",
-        })
-        api.save_server_cookie({
-            "cookies": {"token": "ghi"},
-            "label": "other",
-            "flow_id": 999,
-            "provider": "WHISK",
-        })
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_test_cookie_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = RuntimeError("boom")
+        c = CookieApiClient(access_token="tok")
+        result = c.test_cookie({"cookies": {}})
+        assert result.success is False
 
-        resp = api.get_api_keys(flow_id=122, provider="WHISK")
-        assert resp.success is True
-        assert resp.data["total"] == 2
-        assert len(resp.data["items"]) == 2
 
-    def test_get_api_keys_provider_filter(self, api):
-        api.save_server_cookie({
-            "cookies": {},
-            "label": "w1",
-            "flow_id": 1,
-            "provider": "WHISK",
-        })
-        api.save_server_cookie({
-            "cookies": {},
-            "label": "v1",
-            "flow_id": 1,
-            "provider": "OTHER",
-        })
+class TestCookieApiSaveCookie:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_save_cookie_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": 1, "status": "ok"})
+        c = CookieApiClient(access_token="tok")
+        result = c.save_cookie({"cookies": {}, "label": "l", "flow_id": 1})
+        assert result.success is True
 
-        whisk = api.get_api_keys(flow_id=1, provider="WHISK")
-        assert whisk.data["total"] == 1
-        assert whisk.data["items"][0]["provider"] == "WHISK"
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_save_cookie_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(400, {"message": "Bad data"})
+        c = CookieApiClient(access_token="tok")
+        result = c.save_cookie({"cookies": {}})
+        assert result.success is False
 
-    def test_delete_api_key(self, api):
-        resp = api.save_server_cookie({
-            "cookies": {},
-            "label": "to_delete",
-            "flow_id": 1,
-            "provider": "WHISK",
-        })
-        key_id = resp.data["api_key"]["id"]
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_save_cookie_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("timeout")
+        c = CookieApiClient(access_token="tok")
+        result = c.save_cookie({})
+        assert result.success is False
 
-        del_resp = api.delete_api_key(key_id)
-        assert del_resp.success is True
-        assert del_resp.data["ok"] is True
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_save_cookie_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = Exception("oops")
+        c = CookieApiClient(access_token="tok")
+        result = c.save_cookie({})
+        assert result.success is False
 
-        # Verify it's gone
-        list_resp = api.get_api_keys(flow_id=1, provider="WHISK")
-        assert list_resp.data["total"] == 0
 
-    def test_delete_api_key_not_found(self, api):
-        resp = api.delete_api_key(99999)
-        assert resp.success is False
-        assert "not found" in resp.message.lower()
+class TestCookieApiGetApiKeys:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_get_api_keys_success(self, mock_urlopen):
+        body = {"items": [{"id": 1}], "total": 1, "offset": 0, "limit": 1000}
+        mock_urlopen.return_value = _mock_response(body)
+        c = CookieApiClient(access_token="tok")
+        result = c.get_api_keys(flow_id=1)
+        assert result.success is True
+        assert len(result.data["items"]) == 1
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_get_api_keys_empty(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"items": [], "total": 0})
+        c = CookieApiClient(access_token="tok")
+        result = c.get_api_keys(flow_id=1)
+        assert result.success is True
+        assert result.data["items"] == []
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_get_api_keys_with_filters(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"items": [], "total": 0})
+        c = CookieApiClient(access_token="tok")
+        c.get_api_keys(flow_id=5, status="active", mine=True)
+        req = mock_urlopen.call_args[0][0]
+        assert "flow_id=5" in req.full_url
+        assert "status=active" in req.full_url
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_get_api_keys_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(500, {"message": "Server error"})
+        c = CookieApiClient(access_token="tok")
+        result = c.get_api_keys(flow_id=1)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_get_api_keys_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("timeout")
+        c = CookieApiClient(access_token="tok")
+        result = c.get_api_keys(flow_id=1)
+        assert result.success is False
+
+
+class TestCookieApiDeleteApiKey:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_delete_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"ok": True})
+        c = CookieApiClient(access_token="tok")
+        result = c.delete_api_key(42)
+        assert result.success is True
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_delete_not_ok(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"ok": False})
+        c = CookieApiClient(access_token="tok")
+        result = c.delete_api_key(42)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_delete_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(404, {"message": "Not found"})
+        c = CookieApiClient(access_token="tok")
+        result = c.delete_api_key(999)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_delete_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("refused")
+        c = CookieApiClient(access_token="tok")
+        result = c.delete_api_key(1)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_delete_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = RuntimeError("boom")
+        c = CookieApiClient(access_token="tok")
+        result = c.delete_api_key(1)
+        assert result.success is False
+
+
+class TestCookieApiRefreshApiKey:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_refresh_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"status": "active"})
+        c = CookieApiClient(access_token="tok")
+        result = c.refresh_api_key(42)
+        assert result.success is True
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_refresh_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(500, "error")
+        c = CookieApiClient(access_token="tok")
+        result = c.refresh_api_key(42)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_refresh_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("timeout")
+        c = CookieApiClient(access_token="tok")
+        result = c.refresh_api_key(42)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_refresh_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = Exception("boom")
+        c = CookieApiClient(access_token="tok")
+        result = c.refresh_api_key(42)
+        assert result.success is False
+
+
+class TestCookieApiAssignApiKey:
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_assign_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": 1, "flow_id": 5})
+        c = CookieApiClient(access_token="tok")
+        result = c.assign_api_key_to_flow(1, 5)
+        assert result.success is True
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_assign_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(400, {"message": "Invalid"})
+        c = CookieApiClient(access_token="tok")
+        result = c.assign_api_key_to_flow(1, 5)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_assign_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("refused")
+        c = CookieApiClient(access_token="tok")
+        result = c.assign_api_key_to_flow(1, 5)
+        assert result.success is False
+
+    @patch("app.api.cookie_api.urllib.request.urlopen")
+    def test_assign_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = RuntimeError("x")
+        c = CookieApiClient(access_token="tok")
+        result = c.assign_api_key_to_flow(1, 5)
+        assert result.success is False
+
+
+class TestCookieApiHandleHttpError:
+    def test_json_error_body(self):
+        c = CookieApiClient()
+        err = _make_http_error(422, {"message": "Validation error"})
+        result = c._handle_http_error(err, "test")
+        assert "Validation error" in result.message
+
+    def test_non_json_error_body(self):
+        c = CookieApiClient()
+        err = _make_http_error(500, "Internal Server Error")
+        result = c._handle_http_error(err, "test")
+        assert "500" in result.message

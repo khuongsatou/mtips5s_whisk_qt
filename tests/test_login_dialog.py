@@ -82,10 +82,15 @@ class TestLoginDialogLogin:
         with qtbot.waitSignal(self.dialog.login_success, timeout=1000):
             self.dialog._on_login()
 
-    def test_failed_login_shows_error(self):
+    def test_failed_login_shows_error(self, qtbot):
         self.auth.login.return_value = (False, "Invalid")
         self.dialog._key_input.setText("bad_key")
         self.dialog._on_login()
+        # Wait for background worker thread to complete
+        self.dialog._worker.wait()
+        # Process pending cross-thread signals
+        from PySide6.QtCore import QCoreApplication
+        QCoreApplication.processEvents()
         assert "Invalid" in self.dialog._status_label.text()
 
     def test_login_disables_button_on_attempt(self):

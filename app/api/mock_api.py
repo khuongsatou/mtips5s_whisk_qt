@@ -16,7 +16,6 @@ from app.api.models import ApiResponse, TaskItem, CookieItem, ProjectItem, Token
 logger = logging.getLogger("whisk.mock_api")
 
 CHECKPOINT_DIR = os.path.join(os.path.expanduser("~"), ".whisk_pro")
-CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, "queue_checkpoint.json")
 
 
 class MockApi(BaseApi):
@@ -39,8 +38,15 @@ class MockApi(BaseApi):
     RATIOS = ["16:9", "9:16", "1:1", "4:3"]
     QUALITIES = ["1K", "2K", "4K"]
 
-    def __init__(self):
+    def __init__(self, flow_id: int | str | None = None):
         """Initialize mock API with sample queue data."""
+        self._flow_id = str(flow_id) if flow_id else None
+        # Per-project checkpoint file
+        if self._flow_id:
+            fname = f"queue_checkpoint_{self._flow_id}.json"
+        else:
+            fname = "queue_checkpoint.json"
+        self._checkpoint_path = os.path.join(CHECKPOINT_DIR, fname)
         self._queue: list[TaskItem] = []
         self._cookies: list[CookieItem] = self._generate_sample_cookies()
         self._projects: list[ProjectItem] = self._generate_sample_projects()
@@ -185,17 +191,17 @@ class MockApi(BaseApi):
             for item in data:
                 if "created_at" in item and hasattr(item["created_at"], "isoformat"):
                     item["created_at"] = item["created_at"].isoformat()
-            with open(CHECKPOINT_PATH, "w", encoding="utf-8") as f:
+            with open(self._checkpoint_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
         except Exception as e:
             logger.error(f"❌ Failed to save checkpoint: {e}")
 
     def _load_checkpoint(self):
         """Load queue state from JSON checkpoint file on startup."""
-        if not os.path.isfile(CHECKPOINT_PATH):
+        if not os.path.isfile(self._checkpoint_path):
             return
         try:
-            with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
+            with open(self._checkpoint_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, list):
                 return
@@ -208,8 +214,8 @@ class MockApi(BaseApi):
         """Delete the checkpoint file and clear the queue."""
         self._queue.clear()
         try:
-            if os.path.isfile(CHECKPOINT_PATH):
-                os.remove(CHECKPOINT_PATH)
+            if os.path.isfile(self._checkpoint_path):
+                os.remove(self._checkpoint_path)
                 logger.info("🗑️ Checkpoint file deleted")
         except Exception as e:
             logger.error(f"❌ Failed to delete checkpoint: {e}")

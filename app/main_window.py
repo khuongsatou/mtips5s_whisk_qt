@@ -157,12 +157,17 @@ class MainWindow(QMainWindow):
                 self._tab_bar.set_active_tab(existing)
             return existing
 
+        # Create a per-project MockApi so each tab has its own queue/checkpoint
+        from app.api.mock_api import MockApi
+        tab_api = MockApi(flow_id=flow_id)
+
         # Create a new ImageCreatorPage for this tab
         page = ImageCreatorPage(
-            self.translator, self.api,
+            self.translator, tab_api,
             workflow_api=self.workflow_api,
             cookie_api=self.cookie_api,
             active_flow_id=int(flow_id) if flow_id else None,
+            flow_name=flow_name,
         )
 
         # Add to stack (before settings)

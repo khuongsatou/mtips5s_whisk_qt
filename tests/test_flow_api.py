@@ -1,169 +1,260 @@
 """
-Tests for Flow API integration (models + mock API).
+Tests for FlowApiClient — flow CRUD with mocked HTTP.
 """
+import json
 import pytest
-from app.api.mock_api import MockApi
-from app.api.models import FlowConfig, FlowItem, ApiResponse
+from io import BytesIO
+from unittest.mock import patch, MagicMock
+from app.api.flow_api import FlowApiClient
 
 
-class TestFlowConfig:
-    """Tests for FlowConfig dataclass."""
-
-    def test_defaults(self):
-        config = FlowConfig()
-        assert config.auto_generate is True
-        assert config.seed is None
-        assert config.aspectRatio == "VIDEO_ASPECT_RATIO_LANDSCAPE"
-        assert config.videoModelKey == "veo_3_1_t2v_fast_ultra"
-        assert config.batch_size == 5
-        assert config.concurrent_limit == 3
-        assert config.auto_download is True
-        assert config.retry_failed is True
-        assert config.max_retries == 2
-
-    def test_to_dict_roundtrip(self):
-        config = FlowConfig(batch_size=10, seed=42)
-        d = config.to_dict()
-        restored = FlowConfig.from_dict(d)
-        assert restored.batch_size == 10
-        assert restored.seed == 42
-        assert restored.auto_generate is True
-
-    def test_from_dict_partial(self):
-        config = FlowConfig.from_dict({"batch_size": 3})
-        assert config.batch_size == 3
-        assert config.max_retries == 2  # default
+def _mock_response(body: dict, status: int = 200):
+    """Create a mock urllib response."""
+    resp = MagicMock()
+    resp.status = status
+    resp.read.return_value = json.dumps(body).encode("utf-8")
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    return resp
 
 
-class TestFlowItem:
-    """Tests for FlowItem dataclass."""
-
-    def test_defaults(self):
-        flow = FlowItem()
-        assert flow.type == "WHISK"
-        assert flow.status == "pending"
-        assert flow.upload_count == 0
-
-    def test_to_dict_roundtrip(self):
-        flow = FlowItem(id=42, name="test_flow", type="WHISK")
-        d = flow.to_dict()
-        restored = FlowItem.from_dict(d)
-        assert restored.id == 42
-        assert restored.name == "test_flow"
-        assert restored.type == "WHISK"
-        assert isinstance(restored.config, FlowConfig)
-
-    def test_from_server_response(self):
-        """Parse actual server response format."""
-        server_data = {
-            "id": 122,
-            "name": "flow_4",
-            "description": "Video generation project",
-            "type": "WHISK",
-            "status": "pending",
-            "config": {
-                "aspectRatio": "VIDEO_ASPECT_RATIO_LANDSCAPE",
-                "auto_download": True,
-                "auto_generate": True,
-                "batch_size": 5,
-                "concurrent_limit": 3,
-                "max_retries": 2,
-                "retry_failed": True,
-                "seed": None,
-                "videoModelKey": "veo_3_1_t2v_fast_ultra",
-            },
-            "created_at": "2026-02-15T16:17:40",
-            "upload_count": 0,
-            "user_id": 246,
-        }
-        flow = FlowItem.from_dict(server_data)
-        assert flow.id == 122
-        assert flow.name == "flow_4"
-        assert flow.type == "WHISK"
-        assert flow.config.batch_size == 5
-        assert flow.config.videoModelKey == "veo_3_1_t2v_fast_ultra"
-        assert flow.upload_count == 0
+def _make_http_error(code: int, body: dict | str = ""):
+    """Create a mock HTTPError."""
+    import urllib.error
+    if isinstance(body, dict):
+        body = json.dumps(body)
+    resp = BytesIO(body.encode("utf-8"))
+    return urllib.error.HTTPError(
+        url="http://test", code=code, msg="Error", hdrs={}, fp=resp,
+    )
 
 
-class TestMockFlowApi:
-    """Tests for mock flow API methods."""
+class TestFlowApiClientInit:
+    """Test initialization."""
 
-    @pytest.fixture
-    def api(self):
-        return MockApi()
+    def test_default_access_token(self):
+        client = FlowApiClient()
+        assert client._access_token == ""
 
-    def test_create_flow(self, api):
-        resp = api.create_flow({
-            "name": "test_flow",
-            "description": "Test flow",
-            "type": "WHISK",
-            "config": {"batch_size": 3},
-        })
-        assert resp.success is True
-        assert resp.data["name"] == "test_flow"
-        assert resp.data["type"] == "WHISK"
-        assert resp.data["config"]["batch_size"] == 3
-        assert resp.data["status"] == "pending"
+    def test_custom_access_token(self):
+        client = FlowApiClient(access_token="tok-123")
+        assert client._access_token == "tok-123"
 
-    def test_create_flow_default_type(self, api):
-        resp = api.create_flow({"name": "no_type"})
-        assert resp.success is True
-        assert resp.data["type"] == "WHISK"
+    def test_set_access_token(self):
+        client = FlowApiClient()
+        client.set_access_token("new-tok")
+        assert client._access_token == "new-tok"
 
-    def test_get_flows_empty(self, api):
-        resp = api.get_flows()
-        assert resp.success is True
-        assert resp.data["items"] == []
-        assert resp.data["total"] == 0
+    def test_headers_without_content_type(self):
+        client = FlowApiClient(access_token="tok")
+        h = client._headers()
+        assert h["Authorization"] == "Bearer tok"
+        assert "Content-Type" not in h
 
-    def test_get_flows_after_create(self, api):
-        api.create_flow({"name": "flow_1", "type": "WHISK"})
-        api.create_flow({"name": "flow_2", "type": "WHISK"})
-        api.create_flow({"name": "other", "type": "OTHER_TYPE"})
+    def test_headers_with_content_type(self):
+        client = FlowApiClient(access_token="tok")
+        h = client._headers(with_content_type=True)
+        assert h["Content-Type"] == "application/json"
 
-        resp = api.get_flows(flow_type="WHISK")
-        assert resp.success is True
-        assert resp.data["total"] == 2
-        assert len(resp.data["items"]) == 2
 
-    def test_get_flows_pagination(self, api):
-        for i in range(5):
-            api.create_flow({"name": f"flow_{i}", "type": "WHISK"})
+class TestFlowApiCreateFlow:
+    """Test create_flow method."""
 
-        resp = api.get_flows(offset=0, limit=2, flow_type="WHISK")
-        assert resp.data["total"] == 5
-        assert len(resp.data["items"]) == 2
-        assert resp.data["has_more"] is True
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": 42, "name": "test"})
+        client = FlowApiClient(access_token="tok")
 
-        resp2 = api.get_flows(offset=4, limit=2, flow_type="WHISK")
-        assert len(resp2.data["items"]) == 1
-        assert resp2.data["has_more"] is False
+        result = client.create_flow({"name": "test"})
 
-    def test_get_flows_type_filter(self, api):
-        api.create_flow({"name": "w1", "type": "WHISK"})
-        api.create_flow({"name": "v1", "type": "VEO3_V2"})
+        assert result.success is True
+        assert result.data["id"] == 42
 
-        whisk = api.get_flows(flow_type="WHISK")
-        assert whisk.data["total"] == 1
-        assert whisk.data["items"][0]["type"] == "WHISK"
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_adds_default_type(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": 1})
+        client = FlowApiClient(access_token="tok")
 
-        veo = api.get_flows(flow_type="VEO3_V2")
-        assert veo.data["total"] == 1
-        assert veo.data["items"][0]["type"] == "VEO3_V2"
+        data = {"name": "test"}
+        client.create_flow(data)
 
-    def test_delete_flow(self, api):
-        resp = api.create_flow({"name": "to_delete", "type": "WHISK"})
-        flow_id = resp.data["id"]
+        assert data["type"] == "WHISK"
 
-        del_resp = api.delete_flow(flow_id)
-        assert del_resp.success is True
-        assert del_resp.data["ok"] is True
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_preserves_custom_type(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": 1})
+        client = FlowApiClient(access_token="tok")
 
-        # Verify it's gone
-        list_resp = api.get_flows(flow_type="WHISK")
-        assert list_resp.data["total"] == 0
+        data = {"name": "test", "type": "CUSTOM"}
+        client.create_flow(data)
 
-    def test_delete_flow_not_found(self, api):
-        resp = api.delete_flow(99999)
-        assert resp.success is False
-        assert "not found" in resp.message.lower()
+        assert data["type"] == "CUSTOM"
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(400, {"message": "Bad request"})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.create_flow({"name": "test"})
+
+        assert result.success is False
+        assert "Bad request" in result.message
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+        client = FlowApiClient(access_token="tok")
+
+        result = client.create_flow({"name": "test"})
+
+        assert result.success is False
+        assert "Cannot connect" in result.message
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_create_flow_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = Exception("Unexpected")
+        client = FlowApiClient(access_token="tok")
+
+        result = client.create_flow({"name": "test"})
+
+        assert result.success is False
+        assert "Unexpected" in result.message
+
+
+class TestFlowApiGetFlows:
+    """Test get_flows method."""
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_success(self, mock_urlopen):
+        body = {"items": [{"id": 1}, {"id": 2}], "total": 2}
+        mock_urlopen.return_value = _mock_response(body)
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows()
+
+        assert result.success is True
+        assert len(result.data["items"]) == 2
+        assert result.total == 2
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_empty(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"items": [], "total": 0})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows()
+
+        assert result.success is True
+        assert result.data["items"] == []
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_with_pagination(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"items": [], "total": 50})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows(offset=20, limit=10)
+
+        assert result.success is True
+        # Verify URL contains pagination params
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert "offset=20" in req.full_url
+        assert "limit=10" in req.full_url
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(500, {"message": "Server error"})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows()
+
+        assert result.success is False
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("timeout")
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows()
+
+        assert result.success is False
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_get_flows_total_fallback(self, mock_urlopen):
+        # No 'total' key, should fallback to len(items)
+        mock_urlopen.return_value = _mock_response({"items": [{"id": 1}]})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.get_flows()
+
+        assert result.total == 1
+
+
+class TestFlowApiDeleteFlow:
+    """Test delete_flow method."""
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_delete_flow_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"ok": True})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.delete_flow(42)
+
+        assert result.success is True
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_delete_flow_not_ok(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"ok": False})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.delete_flow(42)
+
+        assert result.success is False
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_delete_flow_http_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _make_http_error(404, {"message": "Not found"})
+        client = FlowApiClient(access_token="tok")
+
+        result = client.delete_flow(999)
+
+        assert result.success is False
+        assert "Not found" in result.message
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_delete_flow_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+        client = FlowApiClient(access_token="tok")
+
+        result = client.delete_flow(1)
+
+        assert result.success is False
+
+    @patch("app.api.flow_api.urllib.request.urlopen")
+    def test_delete_flow_generic_exception(self, mock_urlopen):
+        mock_urlopen.side_effect = RuntimeError("boom")
+        client = FlowApiClient(access_token="tok")
+
+        result = client.delete_flow(1)
+
+        assert result.success is False
+
+
+class TestFlowApiHandleHttpError:
+    """Test _handle_http_error helper."""
+
+    def test_parses_json_error(self):
+        client = FlowApiClient()
+        err = _make_http_error(422, {"message": "Validation failed"})
+        result = client._handle_http_error(err, "test_method")
+        assert result.success is False
+        assert "Validation failed" in result.message
+
+    def test_non_json_error_body(self):
+        client = FlowApiClient()
+        err = _make_http_error(500, "Internal Server Error")
+        result = client._handle_http_error(err, "test_method")
+        assert result.success is False
+        assert "500" in result.message

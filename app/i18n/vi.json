@@ -53,6 +53,7 @@
     "toolbar.retry_errors": "Chạy lại lỗi",
     "toolbar.run_selected": "Chạy mục chọn",
     "toolbar.run_all": "Tất cả",
+    "toolbar.download_all": "Tải tất cả",
     "toolbar.confirm_delete": "Bạn có chắc chắn muốn xóa các mục đã chọn?",
     "toolbar.confirm_delete_all": "Bạn có chắc chắn muốn xóa tất cả?",
 
@@ -178,5 +179,6 @@
     "login.empty_key": "Vui lòng nhập mã key",
     "login.welcome_back": "Chào mừng trở lại",
     "login.logout": "Đăng xuất",
-    "login.forgot_key": "Quên mã key? Liên hệ Admin"
+    "login.forgot_key": "Quên mã key? Liên hệ Admin",
+    "download.no_images": "Không có ảnh đã tạo để tải."
 }

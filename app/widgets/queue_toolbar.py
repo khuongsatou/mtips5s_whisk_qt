@@ -19,6 +19,7 @@ class QueueToolbar(QWidget):
     retry_errors = Signal()
     run_selected = Signal()
     run_all = Signal()
+    download_all = Signal()
 
     def __init__(self, translator, parent=None):
         super().__init__(parent)
@@ -64,6 +65,13 @@ class QueueToolbar(QWidget):
         layout.addStretch()
 
         # --- Right group: execution ---
+        self._download_all_btn = QPushButton("📥")
+        self._download_all_btn.setObjectName("toolbar_button")
+        self._download_all_btn.setCursor(Qt.PointingHandCursor)
+        self._download_all_btn.setToolTip(self.translator.t('toolbar.download_all'))
+        self._download_all_btn.clicked.connect(self.download_all.emit)
+        layout.addWidget(self._download_all_btn)
+
         self._retry_btn = QPushButton("🔄")
         self._retry_btn.setObjectName("toolbar_button")
         self._retry_btn.setCursor(Qt.PointingHandCursor)
@@ -90,6 +98,7 @@ class QueueToolbar(QWidget):
         self._add_row_btn.setToolTip(self.translator.t('toolbar.add_row'))
         self._delete_btn.setToolTip(self.translator.t('toolbar.delete'))
         self._delete_all_btn.setToolTip(self.translator.t('toolbar.delete_all'))
+        self._download_all_btn.setToolTip(self.translator.t('toolbar.download_all'))
         self._retry_btn.setToolTip(self.translator.t('toolbar.retry_errors'))
         self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
         self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))

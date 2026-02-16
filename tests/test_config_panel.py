@@ -42,7 +42,7 @@ class TestConfigPanelDefaults:
         assert self.panel._prompt_input.toPlainText() == ""
 
     def test_default_prefix(self):
-        assert self.panel._prefix_input.text() == "{{number}}.png"
+        assert self.panel._prefix_input.text() == ""
 
     def test_default_output_path_empty(self):
         assert self.panel._output_path.text() == ""
@@ -67,7 +67,7 @@ class TestConfigPanelSections:
         assert len(self.panel._quality_buttons) == 3
 
     def test_has_ratio_buttons(self):
-        assert len(self.panel._ratio_buttons) == 4
+        assert len(self.panel._ratio_buttons) == 3
 
     def test_has_ref_categories(self):
         assert set(self.panel._ref_slot_rows.keys()) == {"title", "scene", "style"}

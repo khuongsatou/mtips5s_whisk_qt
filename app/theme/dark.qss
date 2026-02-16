@@ -793,6 +793,14 @@ QPushButton#ratio_option_btn:checked {
     border-width: 2px;
     background-color: rgba(99, 102, 241, 0.12);
 }
+QPushButton#ratio_option_btn:disabled {
+    background-color: {{bg-secondary}};
+    border-color: {{border-light}};
+    opacity: 0.5;
+}
+QPushButton#ratio_option_btn:disabled QLabel#ratio_option_text {
+    color: {{text-secondary}};
+}
 QFrame#ratio_shape {
     background-color: {{border-light}};
     border: none;
@@ -955,6 +963,10 @@ QPushButton#primary_button:hover {
 }
 QPushButton#primary_button:pressed {
     background-color: {{color-primary-dark}};
+}
+QPushButton#primary_button:disabled {
+    background-color: {{border}};
+    color: {{text-secondary}};
 }
 QPushButton#secondary_button {
     background-color: {{bg-primary}};
@@ -1147,6 +1159,11 @@ QPushButton#toolbar_button:hover {
 }
 QPushButton#toolbar_button:pressed {
     background-color: {{border}};
+}
+QPushButton#toolbar_button:disabled {
+    background-color: {{bg-secondary}};
+    color: {{text-secondary}};
+    border-color: {{border-light}};
 }
 QPushButton#toolbar_danger_button {
     background-color: {{bg-primary}};
