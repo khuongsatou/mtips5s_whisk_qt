@@ -6,11 +6,16 @@ description: Git commit and branch conventions for Whisk Desktop
 
 ## Commit Messages
 
-Format: `<type>(<scope>): <description>`
+Format: `[task_id] nội_dung_task`
 
-### Types
+Where:
 
-| Type       | When                                    |
+- `task_id` — short identifier for the task (e.g. `feat_queue`, `fix_auth`, `test_coverage`)
+- `nội_dung_task` — brief description of what was done
+
+### Task ID Prefixes
+
+| Prefix     | When                                    |
 | ---------- | --------------------------------------- |
 | `feat`     | New feature or page                     |
 | `fix`      | Bug fix                                 |
@@ -21,20 +26,28 @@ Format: `<type>(<scope>): <description>`
 | `chore`    | Dependencies, config, CI                |
 | `i18n`     | Translation updates                     |
 
-### Scopes
-
-Use module name: `config`, `queue`, `auth`, `api`, `theme`, `settings`, `i18n`
-
 ### Examples
 
 ```
-feat(queue): add error message column to task table
-fix(config): resolve AttributeError on concurrency spinbox
-test(widgets): add tests for LogPanel and QueueToolbar
-style(theme): update dark mode button hover colors
-i18n(vi): translate cookie manager dialog
-refactor(api): split base URLs for admin vs generation
+[feat_queue] add open folder button to progress column
+[fix_config] resolve AttributeError on concurrency spinbox
+[test_coverage] add tests for 7 modules below 80%
+[style_theme] update dark mode button hover colors
+[i18n_vi] translate cookie manager dialog
+[refactor_api] split base URLs for admin vs generation
+[feat_workflow] auto-add to queue after workflow link
+[docs_rules] add task tracking and test report rules
 ```
+
+## Auto-Commit After Task
+
+After completing a task, the agent should:
+
+1. **Stage changes**: `git add .`
+2. **Commit** with the convention: `git commit -m "[task_id] description"`
+3. **Push** to remote: `git push origin main`
+
+> **Important**: Only commit after all tests pass and the task is verified.
 
 ## Branch Naming
 

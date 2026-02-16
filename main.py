@@ -31,7 +31,7 @@ logger = logging.getLogger("whisk")
 
 def main():
     """Launch the Whisk Desktop application."""
-    logger.info("Starting Whisk Desktop...")
+    logger.info("🚀 Starting Whisk Desktop...")
     app = create_app(sys.argv)
 
     # Initialize core services
@@ -42,7 +42,7 @@ def main():
     flow_api = FlowApiClient()
     cookie_api = CookieApiClient()
     workflow_api = WorkflowApiClient()
-    logger.info("Core services initialized")
+    logger.info("⚙️ Core services initialized")
 
     # Set app icon
     logo_path = resource_path(os.path.join("app", "assets", "logo.png"))
@@ -51,27 +51,27 @@ def main():
 
     # Apply theme stylesheet (needed for login dialog styling)
     app.setStyleSheet(theme_manager.get_stylesheet())
-    logger.info(f"Theme applied: {theme_manager.current_theme}")
+    logger.info(f"🎨 Theme applied: {theme_manager.current_theme}")
 
     # Try to restore saved session; show login dialog if not logged in
     while True:
         # Try to restore saved session; show login dialog if not logged in
         if auth_manager.try_restore_session():
-            logger.info(f"Session restored for user: {auth_manager.session.username}")
+            logger.info(f"👤 Session restored for user: {auth_manager.session.username}")
         else:
-            logger.info("No saved session, showing login dialog...")
+            logger.info("🔐 No saved session, showing login dialog...")
             login_dialog = LoginDialog(auth_manager, translator)
             if login_dialog.exec() != LoginDialog.Accepted:
-                logger.info("User cancelled login, exiting")
+                logger.info("🚪 User cancelled login, exiting")
                 sys.exit(0)
-            logger.info(f"Login successful: {auth_manager.session.username}")
+            logger.info(f"✅ Login successful: {auth_manager.session.username}")
 
         # Update real API clients with the logged-in user's access token
         token = auth_manager.session.access_token
         flow_api.set_access_token(token)
         cookie_api.set_access_token(token)
         workflow_api.set_access_token(token)
-        logger.info("Real API clients updated with access token")
+        logger.info("🔑 Real API clients updated with access token")
 
         # Create and show main window (user is now authenticated)
         window = MainWindow(
@@ -81,13 +81,13 @@ def main():
         )
 
         window.show()
-        logger.info("Main window displayed")
+        logger.info("🖥️ Main window displayed")
 
         exit_code = app.exec()
 
         if exit_code == 42:
             # Logout requested — loop back to show login dialog
-            logger.info("Logout requested, restarting with login dialog...")
+            logger.info("🚪 Logout requested, restarting with login dialog...")
             continue
         else:
             sys.exit(exit_code)

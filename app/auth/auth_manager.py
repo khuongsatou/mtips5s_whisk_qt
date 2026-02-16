@@ -132,8 +132,8 @@ class AuthManager(QObject):
             )
 
             # Log request (curl-style)
-            logger.info(f">>> POST {LOGIN_URL}")
-            logger.debug(f'>>> curl -X POST "{LOGIN_URL}" '
+            logger.info(f"📤 >>> POST {LOGIN_URL}")
+            logger.debug(f'📤 >>> curl -X POST "{LOGIN_URL}" '
                          f'-H "Content-Type: application/json" '
                          f'-d \'{payload.decode()}\''
             )
@@ -144,8 +144,8 @@ class AuthManager(QObject):
                 body = json.loads(resp_data)
 
             # Log response
-            logger.info(f"<<< {status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             user_data = body.get("data", {})
 
@@ -177,20 +177,20 @@ class AuthManager(QObject):
             except Exception:
                 error_data = ""
                 error_msg = f"HTTP {e.code}"
-            logger.error(f"<<< {e.code} Error")
-            logger.debug(f"<<< Response: {error_data}")
+            logger.error(f"❌ <<< {e.code} Error")
+            logger.debug(f"📥 <<< Response: {error_data}")
             self.login_failed.emit(error_msg)
             return False, error_msg
 
         except urllib.error.URLError as e:
             msg = "Cannot connect to server"
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             self.login_failed.emit(msg)
             return False, msg
 
         except Exception as e:
             msg = str(e)
-            logger.error(f"<<< Exception: {msg}")
+            logger.error(f"❌ <<< Exception: {msg}")
             self.login_failed.emit(msg)
             return False, msg
 
@@ -217,11 +217,11 @@ class AuthManager(QObject):
                 },
                 method="GET",
             )
-            logger.info(f">>> GET {ME_URL}")
+            logger.info(f"📤 >>> GET {ME_URL}")
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             # Update session fields from /auth/me response
             self._session.username = body.get("username", self._session.username)
@@ -236,7 +236,7 @@ class AuthManager(QObject):
             self._save_session()
             return True
         except Exception as e:
-            logger.error(f"<<< fetch_user_info failed: {e}")
+            logger.error(f"❌ <<< fetch_user_info failed: {e}")
             return False
 
     def update_user(self, **fields) -> tuple:
@@ -259,14 +259,14 @@ class AuthManager(QObject):
                 },
                 method="PATCH",
             )
-            logger.info(f">>> PATCH {url}")
-            logger.debug(f">>> Body: {fields}")
+            logger.info(f"📤 >>> PATCH {url}")
+            logger.debug(f"📤 >>> Body: {fields}")
 
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             # Update session from response data
             data = body.get("data", {})
@@ -287,12 +287,12 @@ class AuthManager(QObject):
                 error_msg = error_body.get("message", f"HTTP {e.code}")
             except Exception:
                 error_msg = f"HTTP {e.code}"
-            logger.error(f"<<< {e.code} Error: {error_msg}")
+            logger.error(f"❌ <<< {e.code} Error: {error_msg}")
             return False, error_msg
 
         except Exception as e:
             msg = str(e)
-            logger.error(f"<<< update_user failed: {msg}")
+            logger.error(f"❌ <<< update_user failed: {msg}")
             return False, msg
 
     def _save_session(self):

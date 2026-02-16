@@ -458,7 +458,7 @@ class ConfigPanel(QWidget):
         self._prefix_input = QLineEdit()
         self._prefix_input.setObjectName("config_path")
         self._prefix_input.setPlaceholderText("e.g. whisk_img_")
-        self._prefix_input.setText("{{number}}.png")
+        self._prefix_input.setText("")
         self._output_section.add_widget(self._prefix_input)
 
         # Output folder
@@ -709,7 +709,7 @@ class ConfigPanel(QWidget):
 
         # Prefix & output
         prefix = s.value("filename_prefix", "")
-        if prefix:
+        if prefix and "{{" not in prefix:
             self._prefix_input.setText(prefix)
         output = s.value("output_folder", "")
         if output:

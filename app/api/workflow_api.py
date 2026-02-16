@@ -95,14 +95,14 @@ class WorkflowApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {LABS_TRPC_URL}")
-            logger.debug(f">>> Body: {json.dumps(payload, indent=2)}")
+            logger.info(f"📤 >>> POST {LABS_TRPC_URL}")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(resp_body, indent=2)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(resp_body, indent=2)}")
 
             # Extract workflowId from nested response
             result = (resp_body
@@ -131,14 +131,14 @@ class WorkflowApiClient:
                 error_data = e.read().decode("utf-8")
             except Exception:
                 pass
-            logger.error(f"<<< {e.code} Error in create_workflow")
-            logger.debug(f"<<< Response: {error_data}")
+            logger.error(f"❌ <<< {e.code} Error in create_workflow")
+            logger.debug(f"📥 <<< Response: {error_data}")
             return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:200]}")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to Labs")
         except Exception as e:
-            logger.error(f"<<< create_workflow exception: {e}")
+            logger.error(f"❌ <<< create_workflow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Link Workflow to Server Flow ──────────────────────────────────
@@ -180,14 +180,14 @@ class WorkflowApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {url}")
-            logger.debug(f">>> Body: {json.dumps(payload, indent=2)}")
+            logger.info(f"📤 >>> POST {url}")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(resp_body, indent=2)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(resp_body, indent=2)}")
 
             status = resp_body.get("status", "")
             return ApiResponse(
@@ -202,14 +202,14 @@ class WorkflowApiClient:
                 error_data = e.read().decode("utf-8")
             except Exception:
                 pass
-            logger.error(f"<<< {e.code} Error in link_workflow")
-            logger.debug(f"<<< Response: {error_data}")
+            logger.error(f"❌ <<< {e.code} Error in link_workflow")
+            logger.debug(f"📥 <<< Response: {error_data}")
             return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:200]}")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< link_workflow exception: {e}")
+            logger.error(f"❌ <<< link_workflow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Generate Image via Whisk API ──────────────────────────────────
@@ -270,13 +270,13 @@ class WorkflowApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {WHISK_API_URL} (prompt={prompt[:50]}...)")
-            logger.debug(f">>> Body: {json.dumps(payload, indent=2)}")
+            logger.info(f"📤 >>> POST {WHISK_API_URL} (prompt={prompt[:50]}...)")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
 
             with urllib.request.urlopen(req, timeout=120) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK — image generated")
+            logger.info(f"📥 <<< {resp.status} OK — image generated")
 
             # Extract first generated image
             panels = resp_body.get("imagePanels", [])
@@ -306,12 +306,12 @@ class WorkflowApiClient:
                 error_data = e.read().decode("utf-8")
             except Exception:
                 pass
-            logger.error(f"<<< {e.code} Error in generate_image")
-            logger.debug(f"<<< Response: {error_data}")
+            logger.error(f"❌ <<< {e.code} Error in generate_image")
+            logger.debug(f"📥 <<< Response: {error_data}")
             return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:300]}")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to Google API")
         except Exception as e:
-            logger.error(f"<<< generate_image exception: {e}")
+            logger.error(f"❌ <<< generate_image exception: {e}")
             return ApiResponse(success=False, message=str(e))

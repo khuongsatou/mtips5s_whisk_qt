@@ -63,24 +63,24 @@ class FlowApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {url}")
-            logger.debug(f">>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            logger.info(f"📤 >>> POST {url}")
+            logger.debug(f"📤 >>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             return ApiResponse(success=True, data=body, message="Flow created")
 
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "create_flow")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to flow server")
         except Exception as e:
-            logger.error(f"<<< create_flow exception: {e}")
+            logger.error(f"❌ <<< create_flow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── List Flows ────────────────────────────────────────────────────
@@ -113,13 +113,13 @@ class FlowApiClient:
                 method="GET",
             )
 
-            logger.info(f">>> GET {url}")
+            logger.info(f"📤 >>> GET {url}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             items = body.get("items", [])
             total = body.get("total", len(items))
@@ -134,10 +134,10 @@ class FlowApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "get_flows")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to flow server")
         except Exception as e:
-            logger.error(f"<<< get_flows exception: {e}")
+            logger.error(f"❌ <<< get_flows exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Delete Flow ──────────────────────────────────────────────────
@@ -158,13 +158,13 @@ class FlowApiClient:
                 method="DELETE",
             )
 
-            logger.info(f">>> DELETE {url}")
+            logger.info(f"📤 >>> DELETE {url}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             ok = body.get("ok", False)
             return ApiResponse(success=ok, data=body, message="Flow deleted" if ok else "Delete failed")
@@ -172,10 +172,10 @@ class FlowApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "delete_flow")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to flow server")
         except Exception as e:
-            logger.error(f"<<< delete_flow exception: {e}")
+            logger.error(f"❌ <<< delete_flow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Error Handling ────────────────────────────────────────────────
@@ -189,6 +189,6 @@ class FlowApiClient:
         except Exception:
             error_data = ""
             error_msg = f"HTTP {e.code}"
-        logger.error(f"<<< {e.code} Error in {method}")
-        logger.debug(f"<<< Response: {error_data}")
+        logger.error(f"❌ <<< {e.code} Error in {method}")
+        logger.debug(f"📥 <<< Response: {error_data}")
         return ApiResponse(success=False, message=error_msg)

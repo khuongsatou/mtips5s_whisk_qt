@@ -47,6 +47,13 @@ The **Project Manager** is responsible for:
 | Cookie from Project Dialog         | ✅ Done | UI/UX Dev   |
 | Split Base URLs (admin/labs)       | ✅ Done | Backend Dev |
 | Cross-Platform Build (macOS .app)  | ✅ Done | DevOps      |
+| Prompt Normalizer (text/JSON)      | ✅ Done | Backend Dev |
+| Per-Task Timeout (2min)            | ✅ Done | Backend Dev |
+| Lightweight Progress Updates       | ✅ Done | UI/UX Dev   |
+| Scroll Position Preservation       | ✅ Done | UI/UX Dev   |
+| Re-run Completed Tasks             | ✅ Done | Backend Dev |
+| Project-based Save Paths           | ✅ Done | Backend Dev |
+| Emoji Log Messages                 | ✅ Done | DevOps      |
 
 ---
 
@@ -67,12 +74,17 @@ The **Project Manager** is responsible for:
 | File                                    | Lines | Purpose                                             |
 | --------------------------------------- | ----- | --------------------------------------------------- |
 | `requirements.txt`                      | —     | Dependencies                                        |
-| `main.py`                               | —     | App entry point — must launch without errors        |
+| `main.py`                               | 97    | App entry point — must launch without errors        |
 | `app/widgets/config_panel.py`           | 858   | Largest widget, most active development             |
-| `app/pages/image_creator_page.py`       | 617   | Generation logic, worker threads, progress tracking |
-| `app/widgets/task_queue_table.py`       | 454   | Core queue display, output grid, image preview      |
+| `app/pages/image_creator_page.py`       | 715   | Generation logic, worker threads, progress tracking |
+| `app/widgets/task_queue_table.py`       | 559   | Core queue display, output grid, image preview      |
+| `app/api/mock_api.py`                   | 727   | Mock API + checkpoint save/load                     |
+| `app/api/models.py`                     | 451   | Data model definitions                              |
 | `app/widgets/cookie_manager_dialog.py`  | 416   | Cookie CRUD, test & save flow                       |
 | `app/main_window.py`                    | 379   | Tab management, menu wiring, theme switching        |
 | `app/widgets/project_manager_dialog.py` | 362   | Project CRUD, activate, cookie integration          |
+| `app/api/cookie_api.py`                 | 348   | Cookie/API-key REST client                          |
+| `app/api/workflow_api.py`               | 317   | Whisk image generation API client                   |
+| `app/auth/auth_manager.py`              | 306   | Login, session management, user profile             |
+| `app/prompt_normalizer.py`              | 110   | Prompt sanitization (plain text + JSON)             |
 | `app/widgets/styled_message_box.py`     | 245   | Custom modal dialogs replacing QMessageBox          |
-| `app/api/models.py`                     | —     | Data model definitions                              |

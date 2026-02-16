@@ -41,9 +41,9 @@ APP_ENV = os.environ.get("APP_ENV", "dev")
 _env_file = _PROJECT_ROOT / f".env.{APP_ENV}"
 if _env_file.exists():
     load_dotenv(dotenv_path=str(_env_file), override=True)
-    logger.info(f"Loaded config from {_env_file.name} (APP_ENV={APP_ENV})")
+    logger.info(f"📋 Loaded config from {_env_file.name} (APP_ENV={APP_ENV})")
 else:
-    logger.warning(f".env.{APP_ENV} not found, using defaults")
+    logger.warning(f"⚠️ .env.{APP_ENV} not found, using defaults")
 
 # ── Base URLs (from env vars or defaults) ─────────────────────────────
 
@@ -62,7 +62,7 @@ FLOW_BASE_URL = os.environ.get(
     "https://tools.1nutnhan.com" if APP_ENV == "prod" else "http://localhost:8000",
 )
 
-logger.info(f"API Config: ENV={APP_ENV} | ADMIN={ADMIN_BASE_URL} | FLOW={FLOW_BASE_URL}")
+logger.info(f"⚙️ API Config: ENV={APP_ENV} | ADMIN={ADMIN_BASE_URL} | FLOW={FLOW_BASE_URL}")
 
 
 def admin_url(path: str) -> str:

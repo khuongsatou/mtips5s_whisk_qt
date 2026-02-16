@@ -10,6 +10,7 @@ import os
 import shutil
 import time
 import random
+from app.prompt_normalizer import PromptNormalizer
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
@@ -42,12 +43,14 @@ class GenerationWorker(QThread):
         workflow_id: str,
         tasks: list,
         concurrency: int = 2,
+        workflow_name: str = "",
         parent=None,
     ):
         super().__init__(parent)
         self.workflow_api = workflow_api
         self.google_token = google_token
         self.workflow_id = workflow_id
+        self.workflow_name = workflow_name
         self.tasks = tasks
         self.concurrency = max(1, concurrency)
         self._stop_flag = False
@@ -55,8 +58,10 @@ class GenerationWorker(QThread):
     def stop(self):
         self._stop_flag = True
 
+    TASK_TIMEOUT = 120  # 2 minutes per task
+
     def run(self):
-        logger.info(f"Worker starting with concurrency={self.concurrency} for {len(self.tasks)} tasks")
+        logger.info(f"🏃 Worker starting with concurrency={self.concurrency} for {len(self.tasks)} tasks")
         with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
             futures = {
                 pool.submit(self._process_task, task): task
@@ -65,9 +70,15 @@ class GenerationWorker(QThread):
             for future in as_completed(futures):
                 if self._stop_flag:
                     break
-                # Exceptions are already handled inside _process_task
+                task = futures[future]
+                task_id = task.get("id", "")
                 try:
-                    future.result()
+                    future.result(timeout=self.TASK_TIMEOUT)
+                except TimeoutError:
+                    logger.error(f"⏰ Task {task_id} timed out after {self.TASK_TIMEOUT}s")
+                    self.task_progress.emit(task_id, 0, "error", {
+                        "error_message": f"Timeout: exceeded {self.TASK_TIMEOUT}s limit",
+                    })
                 except Exception:
                     pass
         self.finished_all.emit()
@@ -109,15 +120,25 @@ class GenerationWorker(QThread):
                 # Save image to file
                 encoded_image = gen_resp.data.get("encoded_image", "")
                 if encoded_image:
-                    save_folder = output_folder or os.path.join(
-                        os.path.expanduser("~"), "Downloads", "whisk_pro"
-                    )
+                    # Default: ~/Downloads/whisk_pro/project_name/
+                    if not output_folder:
+                        base = os.path.join(
+                            os.path.expanduser("~"), "Downloads", "whisk_pro"
+                        )
+                        if self.workflow_name:
+                            # Sanitize project name for filesystem
+                            safe_name = self.workflow_name.replace("/", "_").replace(":", "_").strip()
+                            save_folder = os.path.join(base, safe_name)
+                        else:
+                            save_folder = base
+                    else:
+                        save_folder = output_folder
                     saved_path = self._save_image(
                         encoded_image, save_folder,
                         filename_prefix, task.get("stt", 0), img_idx,
                     )
                     saved_paths.append(saved_path)
-                    logger.info(f"Image saved: {saved_path}")
+                    logger.info(f"💾 Image saved: {saved_path}")
 
             elapsed = int(time.time() - start_time)
             self.task_progress.emit(task_id, 100, "completed", {
@@ -127,7 +148,7 @@ class GenerationWorker(QThread):
 
         except Exception as e:
             elapsed = int(time.time() - start_time)
-            logger.error(f"Task {task_id} failed: {e}")
+            logger.error(f"❌ Task {task_id} failed: {e}")
             self.task_progress.emit(task_id, 0, "error", {
                 "elapsed_seconds": elapsed,
                 "error_message": str(e),
@@ -146,6 +167,8 @@ class GenerationWorker(QThread):
 
         parts = []
         if prefix:
+            # Strip file extension from prefix (e.g. "{{number}}.png" → "{{number}}")
+            prefix = os.path.splitext(prefix)[0]
             parts.append(prefix)
         parts.append(f"{stt:03d}")
         if img_idx > 0:
@@ -175,11 +198,13 @@ class ImageCreatorPage(QWidget):
         self.cookie_api = cookie_api
         self._active_flow_id = active_flow_id
         self._workflow_id: str = ""  # Set during workflow creation or loaded from server
+        self._workflow_name: str = ""  # Project name for default save subfolder
         self.translator.language_changed.connect(self.retranslate)
         self._selected_ids: list[str] = []
         self._is_generating = False
         self._worker: GenerationWorker | None = None
-        self._running_task_ids: set[str] = set()  # Track running tasks for progress timer
+        self._running_task_ids: set[str] = set()
+        self._local_progress: dict[str, int] = {}  # tid → estimated %
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(500)  # tick every 500ms
         self._progress_timer.timeout.connect(self._tick_progress)
@@ -254,11 +279,20 @@ class ImageCreatorPage(QWidget):
         self._table.download_clicked.connect(self._on_download)
         self._table.open_folder_clicked.connect(self._on_open_folder)
 
+        # Table prompt editing
+        self._table.prompt_edited.connect(self._on_prompt_edited)
+
     def refresh_data(self):
         """Reload the queue from API."""
         response = self.api.get_queue()
         if response.success:
             self._table.load_data(response.data or [])
+
+    def _on_prompt_edited(self, task_id: str, new_prompt: str):
+        """Persist prompt edits from the table to the API store."""
+        normalized = PromptNormalizer.normalize(new_prompt)
+        self.api.update_task(task_id, {"prompt": normalized})
+        logger.info(f"✏️ Prompt updated for task {task_id[:8]}...")
 
     def _on_selection_changed(self, ids: list[str]):
         """Track selected task IDs."""
@@ -266,12 +300,20 @@ class ImageCreatorPage(QWidget):
 
     def _on_add_to_queue(self, config: dict):
         """Add task(s) from config panel to the queue."""
-        prompt = config.get("prompt", "").strip()
-        if not prompt:
+        prompt_text = config.get("prompt", "").strip()
+        if not prompt_text:
             return
 
-        # Split by newlines → one task per line
-        lines = [line.strip() for line in prompt.split("\n") if line.strip()]
+        # Check if entire block is JSON (single JSON prompt)
+        if PromptNormalizer.is_json_prompt(prompt_text):
+            lines = [PromptNormalizer.normalize_json(prompt_text)]
+        else:
+            # Split by newlines → one task per line, normalize each
+            lines = [
+                PromptNormalizer.normalize(line.strip())
+                for line in prompt_text.split("\n")
+                if line.strip()
+            ]
         for line in lines:
             task_data = {
                 "model": config.get("model", "IMAGEN_3_5"),
@@ -380,7 +422,7 @@ class ImageCreatorPage(QWidget):
 
         workflow_id = wf_resp.data.get("workflowId", "")
         workflow_name = wf_resp.data.get("workflowName", "")
-        logger.info(f"Workflow created: {workflow_id} ({workflow_name})")
+        logger.info(f"🆕 Workflow created: {workflow_id} ({workflow_name})")
 
         # Step 2: Link to server flow
         link_resp = self.workflow_api.link_workflow(
@@ -394,12 +436,13 @@ class ImageCreatorPage(QWidget):
                 f"✅ Workflow created & linked!\n{workflow_id[:16]}..."
             )
             self._workflow_id = workflow_id
-            logger.info(f"Workflow linked: {workflow_id} → flow {self._active_flow_id}")
+            self._workflow_name = workflow_name
+            logger.info(f"🔗 Workflow linked: {workflow_id} → flow {self._active_flow_id}")
 
             # Auto-add to queue if prompts exist
             prompt_text = self._config._prompt_input.toPlainText().strip()
             if prompt_text:
-                logger.info("Auto-adding prompts to queue after workflow link")
+                logger.info("➕ Auto-adding prompts to queue after workflow link")
                 self._config._on_add()
         else:
             self._config.set_workflow_status(
@@ -454,6 +497,18 @@ class ImageCreatorPage(QWidget):
             return
 
         tasks = resp.data or []
+
+        # When running selected tasks, reset completed/error → pending
+        if task_ids is not None:
+            for t in tasks:
+                if t.get("id") in task_ids and t.get("status") in ("completed", "error"):
+                    self.api.update_task(t["id"], {
+                        "status": "pending",
+                        "output_images": [],
+                        "error_message": "",
+                    })
+                    t["status"] = "pending"
+
         pending = [
             t for t in tasks
             if t.get("status") == "pending"
@@ -465,7 +520,8 @@ class ImageCreatorPage(QWidget):
             return
 
         self._is_generating = True
-        logger.info(f"Starting generation for {len(pending)} tasks")
+        self.refresh_data()  # Update UI to show reset status
+        logger.info(f"▶️ Starting generation for {len(pending)} tasks")
 
         # Get concurrency from config (default 2)
         concurrency = self._config._concurrency_spin.value()
@@ -477,6 +533,7 @@ class ImageCreatorPage(QWidget):
             workflow_id=workflow_id,
             tasks=pending,
             concurrency=concurrency,
+            workflow_name=self._workflow_name,
             parent=self,
         )
         self._worker.task_progress.connect(self._on_task_progress)
@@ -491,47 +548,44 @@ class ImageCreatorPage(QWidget):
 
         if status == "running":
             self._running_task_ids.add(task_id)
+            self._local_progress[task_id] = max(
+                self._local_progress.get(task_id, 0), progress
+            )
             if not self._progress_timer.isActive():
                 self._progress_timer.start()
+            # Lightweight update — no full table rebuild
+            self._table.update_task_progress(
+                task_id, self._local_progress[task_id], status
+            )
         else:
-            # Task completed or errored — remove from running set
+            # Task completed or errored — clean up local tracking
             self._running_task_ids.discard(task_id)
-
-        self.refresh_data()
+            self._local_progress.pop(task_id, None)
+            # Full refresh needed to show action buttons / output images
+            self.refresh_data()
 
     def _tick_progress(self):
-        """Smoothly increment progress of all running tasks toward 99%."""
+        """Smoothly animate progress bars — pure local, no API calls."""
         if not self._running_task_ids:
             self._progress_timer.stop()
             return
 
-        resp = self.api.get_queue()
-        if not resp.success:
-            return
-
-        updated = False
-        for task_data in (resp.data or []):
-            tid = task_data.get("id", "")
-            if tid not in self._running_task_ids:
-                continue
-            current = task_data.get("progress", 0)
+        for tid in list(self._running_task_ids):
+            current = self._local_progress.get(tid, 0)
             if current < 99:
-                # Increment by 2-5%, cap at 99
                 increment = random.randint(2, 5)
                 new_pct = min(current + increment, 99)
-                self.api.update_task(tid, {"progress": new_pct})
-                updated = True
-
-        if updated:
-            self.refresh_data()
+                self._local_progress[tid] = new_pct
+                self._table.update_task_progress(tid, new_pct, "running")
 
     def _on_worker_finished(self):
         """Called when all tasks complete."""
         self._is_generating = False
         self._worker = None
         self._running_task_ids.clear()
+        self._local_progress.clear()
         self._progress_timer.stop()
-        logger.info("Generation batch complete")
+        logger.info("✅ Generation batch complete")
         self.refresh_data()
 
     # ── Auth helpers ──────────────────────────────────────────────────
@@ -612,7 +666,7 @@ class ImageCreatorPage(QWidget):
             dst_path = os.path.join(folder, filename)
             shutil.copy2(src_path, dst_path)
             saved += 1
-            logger.info(f"Saved: {dst_path}")
+            logger.info(f"💾 Saved: {dst_path}")
 
         StyledMessageBox.information(
             self, "✅ Saved",
@@ -640,8 +694,13 @@ class ImageCreatorPage(QWidget):
                 folder = os.path.dirname(output_images[0])
 
         if not folder or not os.path.isdir(folder):
-            # Fallback to default download folder
-            folder = os.path.join(os.path.expanduser("~"), "Downloads", "whisk_pro")
+            # Fallback to default download folder with project name
+            base = os.path.join(os.path.expanduser("~"), "Downloads", "whisk_pro")
+            if self._workflow_name:
+                safe_name = self._workflow_name.replace("/", "_").replace(":", "_").strip()
+                folder = os.path.join(base, safe_name)
+            else:
+                folder = base
 
         if os.path.isdir(folder):
             QDesktopServices.openUrl(QUrl.fromLocalFile(folder))

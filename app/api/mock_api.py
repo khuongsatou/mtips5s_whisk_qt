@@ -188,7 +188,7 @@ class MockApi(BaseApi):
             with open(CHECKPOINT_PATH, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
         except Exception as e:
-            logger.error(f"Failed to save checkpoint: {e}")
+            logger.error(f"❌ Failed to save checkpoint: {e}")
 
     def _load_checkpoint(self):
         """Load queue state from JSON checkpoint file on startup."""
@@ -200,9 +200,9 @@ class MockApi(BaseApi):
             if not isinstance(data, list):
                 return
             self._queue = [TaskItem.from_dict(item) for item in data]
-            logger.info(f"Loaded {len(self._queue)} tasks from checkpoint")
+            logger.info(f"📂 Loaded {len(self._queue)} tasks from checkpoint")
         except Exception as e:
-            logger.error(f"Failed to load checkpoint: {e}")
+            logger.error(f"❌ Failed to load checkpoint: {e}")
 
     def clear_checkpoint(self) -> ApiResponse:
         """Delete the checkpoint file and clear the queue."""
@@ -210,9 +210,9 @@ class MockApi(BaseApi):
         try:
             if os.path.isfile(CHECKPOINT_PATH):
                 os.remove(CHECKPOINT_PATH)
-                logger.info("Checkpoint file deleted")
+                logger.info("🗑️ Checkpoint file deleted")
         except Exception as e:
-            logger.error(f"Failed to delete checkpoint: {e}")
+            logger.error(f"❌ Failed to delete checkpoint: {e}")
         return ApiResponse(success=True, message="Checkpoint cleared")
 
     # --- Queue CRUD ---

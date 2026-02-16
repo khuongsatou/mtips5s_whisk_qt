@@ -179,7 +179,7 @@ class MainWindow(QMainWindow):
         # Add to tab bar
         tab_index = self._tab_bar.add_tab(str(flow_id), flow_name)
 
-        logger.info(f"Added tab: {flow_name} (flow_id={flow_id})")
+        logger.info(f"📑 Added tab: {flow_name} (flow_id={flow_id})")
 
         # Persist
         self._save_tabs()
@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
         # Remove from tab bar
         self._tab_bar.remove_tab(index)
 
-        logger.info(f"Closed tab: {tab_data['flow_name']} (flow_id={tab_data['flow_id']})")
+        logger.info(f"❎ Closed tab: {tab_data['flow_name']} (flow_id={tab_data['flow_id']})")
 
         # Update header
         self._update_header_for_current_tab()
@@ -264,9 +264,9 @@ class MainWindow(QMainWindow):
             }
             with open(TABS_FILE, "w") as f:
                 json.dump(data, f)
-            logger.debug(f"Saved {len(data['tabs'])} tabs to {TABS_FILE}")
+            logger.debug(f"💾 Saved {len(data['tabs'])} tabs to {TABS_FILE}")
         except IOError as e:
-            logger.warning(f"Failed to save tabs: {e}")
+            logger.warning(f"⚠️ Failed to save tabs: {e}")
 
     def _load_tabs(self):
         """Load tabs from disk, or fetch from server if none saved."""
@@ -292,9 +292,9 @@ class MainWindow(QMainWindow):
                     elif self._project_tabs:
                         self._tab_bar.set_active_tab(0)
                     loaded = True
-                    logger.info(f"Restored {len(tabs)} tabs from disk")
+                    logger.info(f"📂 Restored {len(tabs)} tabs from disk")
         except (json.JSONDecodeError, IOError, KeyError) as e:
-            logger.warning(f"Failed to load tabs: {e}")
+            logger.warning(f"⚠️ Failed to load tabs: {e}")
 
         # No saved tabs → fetch from server
         if not loaded and self.flow_api:
@@ -312,7 +312,7 @@ class MainWindow(QMainWindow):
                         )
                         loaded = True
             except Exception as e:
-                logger.warning(f"Failed to fetch projects: {e}")
+                logger.warning(f"⚠️ Failed to fetch projects: {e}")
 
         if not loaded:
             self._header.set_cookie_btn_visible(False)

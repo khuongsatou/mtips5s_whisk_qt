@@ -10,7 +10,7 @@
 
 ## Active Task
 
-Added 📂 folder button in progress column to open output folder in Finder.
+Added 📂 folder button in progress column. Installed Roboto font as app-wide default.
 
 ## Backlog
 

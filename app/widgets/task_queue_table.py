@@ -172,6 +172,7 @@ class TaskQueueTable(QTableWidget):
     ref_images_changed = Signal(str, list)  # task_id, new paths
     download_clicked = Signal(str)   # task_id
     open_folder_clicked = Signal(str)  # task_id
+    prompt_edited = Signal(str, str)  # task_id, new_prompt
 
     COLUMNS = [
         ("", 40),           # Checkbox
@@ -193,6 +194,7 @@ class TaskQueueTable(QTableWidget):
         self._ref_grids: dict[str, ReferenceImageGrid] = {}
         self.setObjectName("task_queue_table")
         self._setup_table()
+        self.cellChanged.connect(self._on_cell_changed)
 
     def _setup_table(self):
         """Initialize table structure."""
@@ -228,6 +230,18 @@ class TaskQueueTable(QTableWidget):
         self.setItemDelegateForColumn(4, PromptDelegate(self))
         self.setEditTriggers(QAbstractItemView.DoubleClicked)
 
+    def _on_cell_changed(self, row: int, col: int):
+        """Persist prompt edits to the API."""
+        if col != 4:  # Only care about Prompt column
+            return
+        if row < 0 or row >= len(self._task_ids):
+            return
+        task_id = self._task_ids[row]
+        item = self.item(row, col)
+        if item:
+            new_prompt = item.text().strip()
+            self.prompt_edited.emit(task_id, new_prompt)
+
     def _update_headers(self):
         """Set column headers."""
         header_keys = [
@@ -244,6 +258,11 @@ class TaskQueueTable(QTableWidget):
 
     def load_data(self, tasks: list[dict]):
         """Populate the table with task data."""
+        # Preserve scroll position across rebuild
+        scrollbar = self.verticalScrollBar()
+        saved_scroll = scrollbar.value() if scrollbar else 0
+
+        self.blockSignals(True)  # Prevent cellChanged during population
         self.setRowCount(0)
         self._task_ids.clear()
         self._checkboxes.clear()
@@ -436,6 +455,82 @@ class TaskQueueTable(QTableWidget):
                     "color: #9CA3AF; font-size: 12px; background: transparent;"
                 )
             self.setCellWidget(row, 7, msg_label)
+
+        self.blockSignals(False)  # Re-enable cellChanged
+
+        # Restore scroll position
+        if scrollbar and saved_scroll > 0:
+            scrollbar.setValue(saved_scroll)
+
+    # ── Lightweight progress update (no full rebuild) ─────────────────
+
+    def update_task_progress(self, task_id: str, progress: int, status: str,
+                             error_message: str = ""):
+        """Update only the progress column for a specific task (no full rebuild)."""
+        if task_id not in self._task_ids:
+            return
+        row = self._task_ids.index(task_id)
+
+        # Get or create the progress widget
+        progress_widget = self.cellWidget(row, 6)
+        if progress_widget is None:
+            return
+
+        layout = progress_widget.layout()
+        if layout is None:
+            return
+
+        # Update status badge (first widget in layout)
+        status_label = layout.itemAt(0)
+        if status_label and status_label.widget():
+            badge = status_label.widget()
+            if status == "completed":
+                badge.setText(self.translator.t("status.completed"))
+                badge.setObjectName("badge_completed")
+            elif status == "running":
+                badge.setText(self.translator.t("status.running"))
+                badge.setObjectName("badge_running")
+            elif status == "error":
+                badge.setText(self.translator.t("status.error"))
+                badge.setObjectName("badge_error")
+                badge.setToolTip(error_message)
+            else:
+                badge.setText(self.translator.t("status.pending"))
+                badge.setObjectName("badge_pending")
+            # Force style refresh after objectName change
+            badge.style().unpolish(badge)
+            badge.style().polish(badge)
+
+        # Update or create progress bar
+        pbar_item = layout.itemAt(1)
+        pbar = pbar_item.widget() if pbar_item and isinstance(pbar_item.widget(), QProgressBar) else None
+
+        if status in ("running", "completed") and pbar is None:
+            # Create progress bar on-the-fly (task was initially "pending")
+            pbar = QProgressBar()
+            pbar.setObjectName("task_progress_bar")
+            pbar.setMinimum(0)
+            pbar.setMaximum(100)
+            pbar.setTextVisible(True)
+            pbar.setFixedHeight(16)
+            layout.insertWidget(1, pbar)
+
+        if pbar is not None:
+            if status == "running":
+                pbar.setValue(progress)
+                pbar.setFormat(f"{progress}%  Processing…")
+            elif status == "completed":
+                pbar.setValue(100)
+                pbar.setFormat("100%")
+
+        # Update error message column
+        msg_widget = self.cellWidget(row, 7)
+        if msg_widget and isinstance(msg_widget, QLabel) and error_message:
+            msg_widget.setText(error_message)
+            msg_widget.setStyleSheet(
+                "color: #EF4444; font-size: 12px; background: transparent;"
+            )
+            msg_widget.setToolTip(error_message)
 
     def _emit_selection(self):
         """Emit list of selected task IDs."""

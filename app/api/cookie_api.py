@@ -70,14 +70,14 @@ class CookieApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {url}")
-            logger.debug(f">>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            logger.info(f"📤 >>> POST {url}")
+            logger.debug(f"📤 >>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             ok = body.get("ok", False)
             return ApiResponse(
@@ -89,10 +89,10 @@ class CookieApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "test_cookie")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< test_cookie exception: {e}")
+            logger.error(f"❌ <<< test_cookie exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Save Cookie (Create API Key) ──────────────────────────────────
@@ -125,14 +125,14 @@ class CookieApiClient:
                 method="POST",
             )
 
-            logger.info(f">>> POST {url}")
-            logger.debug(f">>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
+            logger.info(f"📤 >>> POST {url}")
+            logger.debug(f"📤 >>> Body: {json.dumps(data, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             status = body.get("status", "")
             return ApiResponse(
@@ -144,10 +144,10 @@ class CookieApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "save_cookie")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< save_cookie exception: {e}")
+            logger.error(f"❌ <<< save_cookie exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── List API Keys / Cookies ───────────────────────────────────────
@@ -186,13 +186,13 @@ class CookieApiClient:
                 method="GET",
             )
 
-            logger.info(f">>> GET {url}")
+            logger.info(f"📤 >>> GET {url}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             items = body.get("items", [])
             total = body.get("total", len(items))
@@ -207,10 +207,10 @@ class CookieApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "get_api_keys")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< get_api_keys exception: {e}")
+            logger.error(f"❌ <<< get_api_keys exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Delete API Key ────────────────────────────────────────────────
@@ -231,13 +231,13 @@ class CookieApiClient:
                 method="DELETE",
             )
 
-            logger.info(f">>> DELETE {url}")
+            logger.info(f"📤 >>> DELETE {url}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             ok = body.get("ok", False)
             return ApiResponse(success=ok, data=body, message="API key deleted" if ok else "Delete failed")
@@ -245,10 +245,10 @@ class CookieApiClient:
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "delete_api_key")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< delete_api_key exception: {e}")
+            logger.error(f"❌ <<< delete_api_key exception: {e}")
             return ApiResponse(success=False, message=str(e))
     # ── Refresh / re-check a single api-key ────────────────────────────
 
@@ -269,23 +269,23 @@ class CookieApiClient:
                 data=b"{}",
             )
 
-            logger.info(f">>> PUT {url}")
+            logger.info(f"📤 >>> PUT {url}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             return ApiResponse(success=True, data=body, message="Cookie refreshed")
 
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "refresh_api_key")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< refresh_api_key exception: {e}")
+            logger.error(f"❌ <<< refresh_api_key exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Assign API-Key to Flow ────────────────────────────────────────
@@ -312,24 +312,24 @@ class CookieApiClient:
                 method="PUT",
             )
 
-            logger.info(f">>> PUT {url} (flow_id={flow_id})")
-            logger.debug(f">>> Body: {json.dumps({'flow_id': flow_id})}")
+            logger.info(f"📤 >>> PUT {url} (flow_id={flow_id})")
+            logger.debug(f"📤 >>> Body: {json.dumps({'flow_id': flow_id})}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"<<< {resp.status} OK")
-            logger.debug(f"<<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
+            logger.info(f"📥 <<< {resp.status} OK")
+            logger.debug(f"📥 <<< Response: {json.dumps(body, indent=2, ensure_ascii=False)}")
 
             return ApiResponse(success=True, data=body, message="API key assigned to flow")
 
         except urllib.error.HTTPError as e:
             return self._handle_http_error(e, "assign_api_key_to_flow")
         except urllib.error.URLError as e:
-            logger.error(f"<<< Connection failed: {e.reason}")
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
             return ApiResponse(success=False, message="Cannot connect to server")
         except Exception as e:
-            logger.error(f"<<< assign_api_key_to_flow exception: {e}")
+            logger.error(f"❌ <<< assign_api_key_to_flow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     # ── Error Handling ────────────────────────────────────────────────
@@ -343,6 +343,6 @@ class CookieApiClient:
         except Exception:
             error_data = ""
             error_msg = f"HTTP {e.code}"
-        logger.error(f"<<< {e.code} Error in {method}")
-        logger.debug(f"<<< Response: {error_data}")
+        logger.error(f"❌ <<< {e.code} Error in {method}")
+        logger.debug(f"📥 <<< Response: {error_data}")
         return ApiResponse(success=False, message=error_msg)
