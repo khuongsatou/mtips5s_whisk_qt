@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QRadioButton, QButtonGroup, QSpinBox, QTextEdit,
     QPushButton, QLineEdit, QFileDialog, QFrame, QScrollArea,
+    QCheckBox,
 )
 from PySide6.QtCore import Signal, Qt, QSettings
 from app.widgets.collapsible_section import CollapsibleSection
@@ -401,6 +402,25 @@ class ConfigPanel(QWidget):
         delay_layout.addWidget(self._delay_max)
         self._exec_section.add_widget(delay_card)
 
+        # Auto-retry toggle
+        auto_retry_card = QWidget()
+        auto_retry_card.setObjectName("exec_row_card")
+        auto_retry_layout = QHBoxLayout(auto_retry_card)
+        auto_retry_layout.setContentsMargins(10, 8, 10, 8)
+        auto_retry_layout.setSpacing(8)
+
+        auto_retry_icon = QLabel("🔁")
+        auto_retry_icon.setObjectName("exec_row_icon")
+        auto_retry_icon.setFixedWidth(24)
+        auto_retry_icon.setAlignment(Qt.AlignCenter)
+        auto_retry_layout.addWidget(auto_retry_icon)
+
+        self._auto_retry_cb = QCheckBox(self.translator.t("config.auto_retry"))
+        self._auto_retry_cb.setObjectName("config_checkbox")
+        self._auto_retry_cb.setChecked(False)
+        auto_retry_layout.addWidget(self._auto_retry_cb, 1)
+        self._exec_section.add_widget(auto_retry_card)
+
         layout.addWidget(self._exec_section)
 
     def _build_prompt_section(self, layout):
@@ -429,6 +449,15 @@ class ConfigPanel(QWidget):
         self._prompt_input.setMinimumHeight(80)
         self._prompt_section.add_widget(self._prompt_input)
 
+        # Prompt count label
+        self._prompt_count_label = QLabel("")
+        self._prompt_count_label.setObjectName("prompt_count_label")
+        self._prompt_count_label.setAlignment(Qt.AlignRight)
+        self._prompt_count_label.setStyleSheet(
+            "color: #9CA3AF; font-size: 11px; background: transparent; padding: 0 4px;"
+        )
+        self._prompt_section.add_widget(self._prompt_count_label)
+
         # Split mode
         split_row = QHBoxLayout()
         split_row.setSpacing(6)
@@ -446,7 +475,40 @@ class ConfigPanel(QWidget):
         split_row.addWidget(self._split_combo, 1)
         self._prompt_section.add_layout(split_row)
 
+        # Wire prompt count updates
+        self._prompt_input.textChanged.connect(self._update_prompt_count)
+        self._split_combo.currentIndexChanged.connect(self._update_prompt_count)
+
         layout.addWidget(self._prompt_section)
+
+    def _update_prompt_count(self):
+        """Update the prompt count label based on split mode."""
+        text = self._prompt_input.toPlainText().strip()
+        if not text:
+            self._prompt_count_label.setText("")
+            return
+
+        mode = self._split_combo.currentData() or "auto"
+
+        if mode == "json":
+            count = 1
+        elif mode == "paragraph":
+            parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+            count = len(parts)
+        elif mode == "single":
+            parts = [ln.strip() for ln in text.split("\n") if ln.strip()]
+            count = len(parts)
+        else:  # auto
+            # Check if it looks like JSON
+            s = text.strip()
+            if (s.startswith("{") and s.endswith("}")) or \
+               (s.startswith("[") and s.endswith("]")):
+                count = 1
+            else:
+                parts = [ln.strip() for ln in text.split("\n") if ln.strip()]
+                count = len(parts)
+
+        self._prompt_count_label.setText(f"📝 {count} prompt(s)")
 
     def _build_output_section(self, layout):
         """Build output folder and filename prefix section."""
@@ -660,6 +722,7 @@ class ConfigPanel(QWidget):
         s.setValue("split_mode", self._split_combo.currentData())
         s.setValue("filename_prefix", self._prefix_input.text().strip())
         s.setValue("output_folder", self._output_path.text())
+        s.setValue("auto_retry", self._auto_retry_cb.isChecked())
 
     def _load_settings(self):
         """Load saved config values from QSettings."""
@@ -719,6 +782,10 @@ class ConfigPanel(QWidget):
         if output:
             self._output_path.setText(output)
 
+        # Auto-retry
+        auto_retry = s.value("auto_retry", False, type=bool)
+        self._auto_retry_cb.setChecked(auto_retry)
+
     def clear_inputs(self):
         """Clear prompt and reference images (keep other config)."""
         self._prompt_input.clear()
@@ -746,6 +813,8 @@ class ConfigPanel(QWidget):
         self._delay_max.setValue(5)
         # Split mode
         self._split_combo.setCurrentIndex(0)
+        # Auto-retry
+        self._auto_retry_cb.setChecked(False)
         # Clear text fields
         self._prefix_input.clear()
         self._output_path.clear()
@@ -771,6 +840,7 @@ class ConfigPanel(QWidget):
         self._images_label.setText(self.translator.t('config.images_per_prompt'))
         self._concurrency_label.setText(self.translator.t('config.concurrency'))
         self._delay_label.setText(self.translator.t('config.delay'))
+        self._auto_retry_cb.setText(self.translator.t('config.auto_retry'))
         self._file_btn.setText(f"📄 {self.translator.t('config.load_file')}")
         self._prompt_label.setText(f"💬 {self.translator.t('config.prompt')}")
         self._prompt_input.setPlaceholderText(self.translator.t("config.prompt_placeholder"))
@@ -831,6 +901,11 @@ class ConfigPanel(QWidget):
             circle.style().polish(circle)
             label.style().unpolish(label)
             label.style().polish(label)
+
+    @property
+    def is_auto_retry_enabled(self) -> bool:
+        """Whether auto-retry is enabled."""
+        return self._auto_retry_cb.isChecked()
 
     def reset_pipeline(self):
         """Reset all pipeline steps to inactive."""

@@ -87,7 +87,7 @@ class TestTaskQueueTableInit:
         qtbot.addWidget(self.table)
 
     def test_column_count(self):
-        assert self.table.columnCount() == 8
+        assert self.table.columnCount() == 9
 
     def test_no_rows_initially(self):
         assert self.table.rowCount() == 0

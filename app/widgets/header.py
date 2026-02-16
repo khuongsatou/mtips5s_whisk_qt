@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt
-from app.widgets.toggle_switch import ToggleSwitch
 
 
 class Header(QWidget):
@@ -20,7 +19,6 @@ class Header(QWidget):
     cookies_clicked = Signal()
     projects_clicked = Signal()
     tokens_clicked = Signal()
-    auto_toggled = Signal(bool)
 
     def __init__(self, translator, theme_manager, parent=None):
         super().__init__(parent)
@@ -80,12 +78,6 @@ class Header(QWidget):
 
         # Separator
         layout.addSpacing(8)
-
-        # Auto switch
-        self._auto_switch = ToggleSwitch("Auto")
-        self._auto_switch.setObjectName("header_auto_switch")
-        self._auto_switch.toggled.connect(self.auto_toggled.emit)
-        layout.addWidget(self._auto_switch)
 
         # User info label
         self._user_label = QLabel("")

@@ -22,6 +22,7 @@ from app.widgets.task_queue_table import TaskQueueTable
 from app.widgets.queue_toolbar import QueueToolbar
 from app.widgets.log_panel import LogPanel
 from app.widgets.styled_message_box import StyledMessageBox
+from app.widgets.toast_notification import ToastNotification
 
 logger = logging.getLogger("whisk.image_creator")
 
@@ -75,14 +76,10 @@ class GenerationWorker(QThread):
                 task = futures[future]
                 task_id = task.get("id", "")
                 try:
-                    future.result(timeout=self.TASK_TIMEOUT)
-                except TimeoutError:
-                    logger.error(f"⏰ Task {task_id} timed out after {self.TASK_TIMEOUT}s")
-                    self.task_progress.emit(task_id, 0, "error", {
-                        "error_message": f"Timeout: exceeded {self.TASK_TIMEOUT}s limit",
-                    })
-                except Exception:
-                    pass
+                    future.result()
+                except Exception as exc:
+                    # Catch any unhandled exceptions from _process_task
+                    logger.error(f"❌ Task {task_id} unexpected error: {exc}")
         self.finished_all.emit()
 
     def _process_task(self, task: dict):
@@ -109,6 +106,14 @@ class GenerationWorker(QThread):
                 if self._stop_flag:
                     break
 
+                # Check timeout before making API call
+                elapsed = time.time() - start_time
+                if elapsed >= self.TASK_TIMEOUT:
+                    raise TimeoutError(
+                        f"Task timeout ({self.TASK_TIMEOUT}s). "
+                        "Hãy thử đổi prompt khác / Try a different prompt."
+                    )
+
                 gen_resp = self.workflow_api.generate_image(
                     google_access_token=self.google_token,
                     workflow_id=self.workflow_id,
@@ -117,7 +122,14 @@ class GenerationWorker(QThread):
                 )
 
                 if not gen_resp.success:
-                    raise Exception(gen_resp.message)
+                    error_msg = gen_resp.message or "Generation failed"
+                    # Check if it's a server-side timeout/creating stuck
+                    if any(kw in error_msg.lower() for kw in ["timeout", "creating", "timed out"]):
+                        raise TimeoutError(
+                            f"{error_msg}. "
+                            "Hãy thử đổi prompt khác / Try a different prompt."
+                        )
+                    raise Exception(error_msg)
 
                 # Save image to file
                 encoded_image = gen_resp.data.get("encoded_image", "")
@@ -199,6 +211,8 @@ class GenerationWorker(QThread):
 class ImageCreatorPage(QWidget):
     """Main image creator page with config panel, queue table, and toolbar."""
 
+    MAX_RETRIES = 2  # Max retry attempts (3 total = 1 original + 2 retries)
+
     def __init__(self, translator, api, parent=None,
                  workflow_api=None, cookie_api=None, active_flow_id=None,
                  flow_name: str = ""):
@@ -217,9 +231,18 @@ class ImageCreatorPage(QWidget):
         self._worker: GenerationWorker | None = None
         self._running_task_ids: set[str] = set()
         self._local_progress: dict[str, int] = {}  # tid → estimated %
+        self._task_start_times: dict[str, float] = {}  # tid → time.time()
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(500)  # tick every 500ms
         self._progress_timer.timeout.connect(self._tick_progress)
+
+        # Auto-retry state
+        self._retry_counts: dict[str, int] = {}  # task_id → attempt count
+        self._auto_retry_timer = QTimer(self)
+        self._auto_retry_timer.setSingleShot(True)
+        self._auto_retry_timer.setInterval(60_000)  # 60 seconds
+        self._auto_retry_timer.timeout.connect(self._do_auto_retry)
+
         self._setup_ui()
         self._connect_signals()
         # Restore persisted workflow if flow_id is known
@@ -294,6 +317,9 @@ class ImageCreatorPage(QWidget):
         right_layout.addWidget(self._log_panel)
 
         self._splitter.addWidget(right_widget)
+
+        # Toast notification (overlays on top of right panel)
+        self._toast = ToastNotification(right_widget)
         right_widget.setMinimumWidth(200)
 
         # Initial sizes: ~400px config, rest for table
@@ -322,6 +348,17 @@ class ImageCreatorPage(QWidget):
         self._toolbar.run_all.connect(self._on_run_all)
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
         self._toolbar.download_all.connect(self._on_download_all)
+        self._toolbar.select_errors.connect(self._table.select_errors)
+
+        # Pagination
+        self._toolbar.prev_page.connect(self._table.prev_page)
+        self._toolbar.next_page.connect(self._table.next_page)
+        self._table.page_changed.connect(self._toolbar.update_page_info)
+        self._table.stats_changed.connect(self._toolbar.update_stats)
+
+        # Search
+        self._toolbar.search_changed.connect(self._table.set_search_filter)
+        self._toolbar.status_filter_changed.connect(self._table.set_status_filter)
 
         # Table download + open folder
         self._table.download_clicked.connect(self._on_download)
@@ -334,7 +371,22 @@ class ImageCreatorPage(QWidget):
         """Reload the queue from API."""
         response = self.api.get_queue()
         if response.success:
-            self._table.load_data(response.data or [])
+            tasks = response.data or []
+            # Cleanup stuck tasks: if not generating, any "creating"/"running"
+            # tasks are leftovers from interrupted runs — mark as error
+            if not self._is_generating:
+                for t in tasks:
+                    if t.get("status") in ("creating", "running"):
+                        t["status"] = "error"
+                        t["error_message"] = (
+                            "Task bị gián đoạn. Hãy thử lại hoặc đổi prompt khác."
+                        )
+                        self.api.update_task(t["id"], {
+                            "status": "error",
+                            "error_message": t["error_message"],
+                        })
+                        logger.info(f"🔧 Fixed stuck task {t['id'][:8]}... → error")
+            self._table.load_data(tasks)
 
     def _on_prompt_edited(self, task_id: str, new_prompt: str):
         """Persist prompt edits from the table to the API store."""
@@ -362,6 +414,16 @@ class ImageCreatorPage(QWidget):
                 for line in prompt_text.split("\n")
                 if line.strip()
             ]
+
+        MAX_PROMPTS = 300
+        if len(lines) > MAX_PROMPTS:
+            StyledMessageBox.warning(
+                self, "Error",
+                f"Tối đa {MAX_PROMPTS} prompt mỗi lần.\n"
+                f"Bạn đang thêm {len(lines)} prompt."
+            )
+            return
+
         for line in lines:
             task_data = {
                 "model": config.get("model", "IMAGEN_3_5"),
@@ -406,6 +468,8 @@ class ImageCreatorPage(QWidget):
 
     def _on_retry_errors(self):
         """Reset error tasks to pending."""
+        self._retry_counts.clear()  # Manual retry resets all counts
+        self._auto_retry_timer.stop()
         self.api.retry_errors()
         self.refresh_data()
 
@@ -529,6 +593,8 @@ class ImageCreatorPage(QWidget):
 
     def _on_run_all(self):
         """Run all pending tasks in background."""
+        self._retry_counts.clear()  # Manual run resets all counts
+        self._auto_retry_timer.stop()
         self._run_tasks()
 
     def _on_run_selected(self):
@@ -621,23 +687,38 @@ class ImageCreatorPage(QWidget):
         """Handle progress updates from the background worker."""
         update_data = {"status": status, "progress": progress}
         update_data.update(extra)
+
+        # Record completion timestamp for finished tasks
+        if status in ("completed", "error"):
+            from datetime import datetime
+            update_data["completed_at"] = datetime.now().isoformat(timespec="seconds")
+
         self.api.update_task(task_id, update_data)
 
         if status == "running":
             self._running_task_ids.add(task_id)
+            # Track start time on first running update
+            if task_id not in self._task_start_times:
+                self._task_start_times[task_id] = time.time()
             self._local_progress[task_id] = max(
                 self._local_progress.get(task_id, 0), progress
             )
             if not self._progress_timer.isActive():
                 self._progress_timer.start()
             # Lightweight update — no full table rebuild
+            elapsed = int(time.time() - self._task_start_times[task_id])
             self._table.update_task_progress(
-                task_id, self._local_progress[task_id], status
+                task_id, self._local_progress[task_id], status,
+                elapsed_seconds=elapsed,
             )
         else:
             # Task completed or errored — clean up local tracking
             self._running_task_ids.discard(task_id)
             self._local_progress.pop(task_id, None)
+            self._task_start_times.pop(task_id, None)
+            # Track retry count for errored tasks
+            if status == "error":
+                self._retry_counts[task_id] = self._retry_counts.get(task_id, 0) + 1
             # Full refresh needed to show action buttons / output images
             self.refresh_data()
 
@@ -653,7 +734,11 @@ class ImageCreatorPage(QWidget):
                 increment = random.randint(2, 5)
                 new_pct = min(current + increment, 99)
                 self._local_progress[tid] = new_pct
-                self._table.update_task_progress(tid, new_pct, "running")
+            elapsed = int(time.time() - self._task_start_times.get(tid, time.time()))
+            self._table.update_task_progress(
+                tid, self._local_progress.get(tid, 0), "running",
+                elapsed_seconds=elapsed,
+            )
 
     def _on_worker_finished(self):
         """Called when all tasks complete."""
@@ -661,9 +746,92 @@ class ImageCreatorPage(QWidget):
         self._worker = None
         self._running_task_ids.clear()
         self._local_progress.clear()
+        self._task_start_times.clear()
         self._progress_timer.stop()
         logger.info("✅ Generation batch complete")
         self.refresh_data()
+
+        # Show completion toast
+        self._show_completion_toast()
+
+        # Auto-retry: schedule retry for tasks that haven't exceeded MAX_RETRIES
+        if self._config.is_auto_retry_enabled:
+            self._schedule_auto_retry()
+
+    def _show_completion_toast(self):
+        """Show a toast summarizing batch results."""
+        response = self.api.get_queue()
+        tasks = response.data or []
+        completed = sum(1 for t in tasks if t.get("status") == "completed")
+        errors = sum(1 for t in tasks if t.get("status") == "error")
+
+        if errors > 0:
+            msg = f"Hoàn thành {completed} ảnh, {errors} lỗi"
+            self._toast.show_message(msg, icon="⚠️",
+                                     bg_start="#F59E0B", bg_end="#D97706")
+        else:
+            msg = f"Hoàn thành {completed} ảnh thành công!"
+            self._toast.show_message(msg, icon="✅")
+
+    def _schedule_auto_retry(self):
+        """Check for retryable errors and schedule auto-retry after 60s."""
+        response = self.api.get_queue()
+        if not response.data:
+            return
+
+        retryable = [
+            t for t in response.data
+            if t.get("status") == "error"
+            and self._retry_counts.get(t["id"], 0) <= self.MAX_RETRIES
+        ]
+
+        if not retryable:
+            logger.info("🔁 No retryable errors (all exceeded max retries)")
+            return
+
+        logger.info(
+            f"🔁 Auto-retry: {len(retryable)} task(s) will retry in 60s "
+            f"(attempt {self._retry_counts.get(retryable[0]['id'], 0)}/{self.MAX_RETRIES + 1})"
+        )
+        self._auto_retry_timer.start()
+
+    def _do_auto_retry(self):
+        """Execute the scheduled auto-retry."""
+        if self._is_generating:
+            logger.info("🔁 Auto-retry skipped: generation already running")
+            return
+
+        if not self._config.is_auto_retry_enabled:
+            logger.info("🔁 Auto-retry cancelled: toggle disabled by user")
+            return
+
+        response = self.api.get_queue()
+        if not response.data:
+            return
+
+        retryable_ids = [
+            t["id"] for t in response.data
+            if t.get("status") == "error"
+            and self._retry_counts.get(t["id"], 0) <= self.MAX_RETRIES
+        ]
+
+        if not retryable_ids:
+            return
+
+        logger.info(f"🔁 Auto-retrying {len(retryable_ids)} task(s)...")
+
+        # Reset only retryable error tasks to pending
+        for t in response.data:
+            if t["id"] in retryable_ids:
+                self.api.update_task(t["id"], {
+                    "status": "pending",
+                    "progress": 0,
+                    "elapsed_seconds": 0,
+                    "error_message": "",
+                })
+
+        self.refresh_data()
+        self._run_tasks(task_ids=retryable_ids)
 
     # ── Auth helpers ──────────────────────────────────────────────────
 

@@ -85,7 +85,7 @@ class WorkflowApiClient:
                           "Chrome/144.0.0.0 Safari/537.36",
         }
 
-        body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
         try:
             req = urllib.request.Request(
@@ -96,7 +96,7 @@ class WorkflowApiClient:
             )
 
             logger.info(f"📤 >>> POST {LABS_TRPC_URL}")
-            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
@@ -165,7 +165,7 @@ class WorkflowApiClient:
             "project_id": project_id,
         }
 
-        body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -181,7 +181,7 @@ class WorkflowApiClient:
             )
 
             logger.info(f"📤 >>> POST {url}")
-            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
@@ -250,7 +250,7 @@ class WorkflowApiClient:
             "mediaCategory": "MEDIA_CATEGORY_BOARD",
         }
 
-        body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {
             "Accept": "*/*",
             "Content-Type": "text/plain;charset=UTF-8",
@@ -271,7 +271,7 @@ class WorkflowApiClient:
             )
 
             logger.info(f"📤 >>> POST {WHISK_API_URL} (prompt={prompt[:50]}...)")
-            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
             with urllib.request.urlopen(req, timeout=120) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))

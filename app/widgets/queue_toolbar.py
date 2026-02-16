@@ -3,9 +3,10 @@ Whisk Desktop — Queue Toolbar Widget.
 
 Bottom toolbar with action buttons:
 [Thêm dòng] [Xóa] [Xóa hết]
+[◀ Prev] [Page 1/3] [Next ▶]
 [Chạy lại lỗi] [Chạy mục chọn] [Tất cả]
 """
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QLineEdit, QComboBox
 from PySide6.QtCore import Signal, Qt
 
 
@@ -20,6 +21,11 @@ class QueueToolbar(QWidget):
     run_selected = Signal()
     run_all = Signal()
     download_all = Signal()
+    prev_page = Signal()
+    next_page = Signal()
+    search_changed = Signal(str)
+    status_filter_changed = Signal(str)
+    select_errors = Signal()
 
     def __init__(self, translator, parent=None):
         super().__init__(parent)
@@ -62,6 +68,69 @@ class QueueToolbar(QWidget):
         self._clear_ckpt_btn.clicked.connect(self.clear_checkpoint.emit)
         layout.addWidget(self._clear_ckpt_btn)
 
+        self._select_errors_btn = QPushButton("⚠️")
+        self._select_errors_btn.setObjectName("toolbar_button")
+        self._select_errors_btn.setCursor(Qt.PointingHandCursor)
+        self._select_errors_btn.setToolTip(self.translator.t('toolbar.select_errors'))
+        self._select_errors_btn.clicked.connect(self.select_errors.emit)
+        layout.addWidget(self._select_errors_btn)
+
+        # --- Search input ---
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("toolbar_search")
+        self._search_input.setPlaceholderText(f"🔍 {self.translator.t('toolbar.search_prompt')}")
+        self._search_input.setClearButtonEnabled(True)
+        self._search_input.setFixedWidth(180)
+        self._search_input.textChanged.connect(self.search_changed.emit)
+        layout.addWidget(self._search_input)
+
+        # --- Status filter ---
+        self._status_filter = QComboBox()
+        self._status_filter.setObjectName("toolbar_combo")
+        self._status_filter.setFixedWidth(110)
+        self._populate_status_filter()
+        self._status_filter.currentIndexChanged.connect(
+            lambda: self.status_filter_changed.emit(
+                self._status_filter.currentData() or ""
+            )
+        )
+        layout.addWidget(self._status_filter)
+
+        layout.addStretch()
+
+        # --- Stats label ---
+        self._stats_label = QLabel("")
+        self._stats_label.setObjectName("stats_label")
+        self._stats_label.setAlignment(Qt.AlignCenter)
+        self._stats_label.setStyleSheet(
+            "font-size: 12px; color: #9CA3AF; background: transparent; padding: 0 8px;"
+        )
+        layout.addWidget(self._stats_label)
+
+
+        # --- Center group: pagination ---
+        self._prev_page_btn = QPushButton("◀")
+        self._prev_page_btn.setObjectName("toolbar_button")
+        self._prev_page_btn.setCursor(Qt.PointingHandCursor)
+        self._prev_page_btn.setToolTip(self.translator.t('toolbar.prev_page'))
+        self._prev_page_btn.setFixedWidth(36)
+        self._prev_page_btn.clicked.connect(self.prev_page.emit)
+        layout.addWidget(self._prev_page_btn)
+
+        self._page_label = QLabel("1 / 1")
+        self._page_label.setObjectName("page_label")
+        self._page_label.setAlignment(Qt.AlignCenter)
+        self._page_label.setFixedWidth(60)
+        layout.addWidget(self._page_label)
+
+        self._next_page_btn = QPushButton("▶")
+        self._next_page_btn.setObjectName("toolbar_button")
+        self._next_page_btn.setCursor(Qt.PointingHandCursor)
+        self._next_page_btn.setToolTip(self.translator.t('toolbar.next_page'))
+        self._next_page_btn.setFixedWidth(36)
+        self._next_page_btn.clicked.connect(self.next_page.emit)
+        layout.addWidget(self._next_page_btn)
+
         layout.addStretch()
 
         # --- Right group: execution ---
@@ -93,12 +162,47 @@ class QueueToolbar(QWidget):
         self._run_all_btn.clicked.connect(self.run_all.emit)
         layout.addWidget(self._run_all_btn)
 
+    def update_page_info(self, current_page: int, total_pages: int):
+        """Update the page label and enable/disable prev/next buttons."""
+        self._page_label.setText(f"{current_page} / {total_pages}")
+        self._prev_page_btn.setEnabled(current_page > 1)
+        self._next_page_btn.setEnabled(current_page < total_pages)
+
+    def update_stats(self, completed: int, errors: int, total: int):
+        """Update the stats label with task counts."""
+        self._stats_label.setText(
+            f"✅ {completed}  ❌ {errors}  📋 {total}"
+        )
+
     def retranslate(self):
         """Update tooltips when language changes."""
         self._add_row_btn.setToolTip(self.translator.t('toolbar.add_row'))
         self._delete_btn.setToolTip(self.translator.t('toolbar.delete'))
         self._delete_all_btn.setToolTip(self.translator.t('toolbar.delete_all'))
+        self._select_errors_btn.setToolTip(self.translator.t('toolbar.select_errors'))
         self._download_all_btn.setToolTip(self.translator.t('toolbar.download_all'))
         self._retry_btn.setToolTip(self.translator.t('toolbar.retry_errors'))
         self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
         self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))
+        self._prev_page_btn.setToolTip(self.translator.t('toolbar.prev_page'))
+        self._next_page_btn.setToolTip(self.translator.t('toolbar.next_page'))
+        self._search_input.setPlaceholderText(f"🔍 {self.translator.t('toolbar.search_prompt')}")
+        self._populate_status_filter()
+
+    def _populate_status_filter(self):
+        """Populate status filter combo with translated labels."""
+        current_data = self._status_filter.currentData()
+        self._status_filter.blockSignals(True)
+        self._status_filter.clear()
+        self._status_filter.addItem(f"📋 {self.translator.t('toolbar.filter_all')}", "")
+        self._status_filter.addItem(f"⏳ {self.translator.t('status.pending')}", "pending")
+        self._status_filter.addItem(f"🔄 {self.translator.t('status.running')}", "running")
+        self._status_filter.addItem(f"✅ {self.translator.t('status.completed')}", "completed")
+        self._status_filter.addItem(f"❌ {self.translator.t('status.error')}", "error")
+        # Restore previous selection
+        if current_data:
+            idx = self._status_filter.findData(current_data)
+            if idx >= 0:
+                self._status_filter.setCurrentIndex(idx)
+        self._status_filter.blockSignals(False)
+
