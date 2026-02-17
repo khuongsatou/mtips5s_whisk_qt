@@ -9,6 +9,7 @@ LABS_TRPC_URL = f"{LABS_BASE_URL}/api/trpc/media.createOrUpdateWorkflow"
 
 WHISK_API_URL = "https://aisandbox-pa.googleapis.com/v1/whisk:generateImage"
 WHISK_RECIPE_URL = "https://aisandbox-pa.googleapis.com/v1/whisk:runImageRecipe"
+WHISK_CREDIT_URL = "https://aisandbox-pa.googleapis.com/v1/whisk:getVideoCreditStatus"
 
 ASPECT_RATIO_MAP = {
     "16:9":  "IMAGE_ASPECT_RATIO_LANDSCAPE",

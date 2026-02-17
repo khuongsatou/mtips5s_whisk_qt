@@ -133,6 +133,46 @@ class MainWindow(QMainWindow):
         # Update header & cookie button for initial state
         self._update_header_for_current_tab()
 
+        # Fetch Google credits
+        self._fetch_credits()
+
+    # ── Google Credits ───────────────────────────────────────────────
+
+    def _fetch_credits(self):
+        """Fetch Google credits from the active cookie and display in header."""
+        if not self.cookie_api or not self.workflow_api:
+            return
+        try:
+            # Get first active tab's flow_id for cookie lookup
+            flow_id = None
+            if self._project_tabs:
+                fid = self._project_tabs[0].get("flow_id")
+                flow_id = int(fid) if fid else None
+
+            if not flow_id:
+                return
+
+            resp = self.cookie_api.get_api_keys(
+                flow_id=flow_id, provider="WHISK", status="active",
+            )
+            if not resp.success or not resp.data:
+                return
+
+            items = resp.data.get("items", [])
+            if not items:
+                return
+
+            google_token = items[0].get("value", "")
+            if not google_token:
+                return
+
+            credit_resp = self.workflow_api.get_credits(google_token)
+            if credit_resp.success and credit_resp.data:
+                credits = credit_resp.data.get("credits", 0)
+                self._header.set_credits(credits)
+        except Exception as e:
+            logger.warning(f"Failed to fetch credits: {e}")
+
     # ── Page switching ───────────────────────────────────────────────
 
     def _switch_page(self, page_key: str):
@@ -204,8 +244,9 @@ class MainWindow(QMainWindow):
             "page": page,
         })
 
-        # Connect queue updates → dashboard refresh
+        # Connect queue updates → dashboard refresh + credits update
         page.queue_data_changed.connect(self._refresh_dashboard)
+        page.queue_data_changed.connect(self._fetch_credits)
 
         # Add to tab bar
         tab_index = self._tab_bar.add_tab(str(flow_id), flow_name)

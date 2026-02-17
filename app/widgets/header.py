@@ -85,6 +85,12 @@ class Header(QWidget):
         self._user_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         layout.addWidget(self._user_label)
 
+        # Credits label
+        self._credits_label = QLabel("")
+        self._credits_label.setObjectName("header_credits_label")
+        self._credits_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        layout.addWidget(self._credits_label)
+
 
         # Theme toggle button
         self._theme_btn = QPushButton(self._theme_label())
@@ -155,3 +161,11 @@ class Header(QWidget):
     def set_cookie_btn_visible(self, visible: bool):
         """Show/hide the cookie button."""
         self._cookies_btn.setVisible(visible)
+
+    def set_credits(self, credits: int):
+        """Display Google credits in the header."""
+        if credits >= 0:
+            self._credits_label.setText(f"💎 {credits:,}")
+            self._credits_label.setToolTip(f"Google Credits: {credits:,}")
+        else:
+            self._credits_label.setText("")

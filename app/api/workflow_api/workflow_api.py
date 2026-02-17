@@ -17,7 +17,8 @@ import random
 from app.api.api_config import LABS_BASE_URL, flow_url
 from app.api.models import ApiResponse
 from app.api.workflow_api.constants import (
-    LABS_TRPC_URL, WHISK_API_URL, WHISK_RECIPE_URL, ASPECT_RATIO_MAP,
+    LABS_TRPC_URL, WHISK_API_URL, WHISK_RECIPE_URL, WHISK_CREDIT_URL,
+    ASPECT_RATIO_MAP,
 )
 
 logger = logging.getLogger("whisk.workflow_api")
@@ -545,3 +546,42 @@ class WorkflowApiClient:
         except Exception as e:
             logger.error(f"❌ <<< generate_image exception: {e}")
             return ApiResponse(success=False, message=str(e))
+
+    def get_credits(self, google_access_token: str, timeout: int = 10) -> ApiResponse:
+        """
+        POST aisandbox-pa.googleapis.com/v1/whisk:getVideoCreditStatus
+
+        Returns ApiResponse with data containing credits count.
+        """
+        body = b"{}"
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "text/plain;charset=UTF-8",
+            "Authorization": f"Bearer {google_access_token}",
+            "Origin": "https://labs.google",
+            "Referer": "https://labs.google/",
+        }
+
+        try:
+            req = urllib.request.Request(
+                WHISK_CREDIT_URL,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+            logger.info("📤 >>> POST getVideoCreditStatus")
+
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                resp_body = json.loads(resp.read().decode("utf-8"))
+
+            credits = resp_body.get("credits", 0)
+            logger.info(f"📥 <<< 200 OK — credits={credits}")
+            return ApiResponse(success=True, data=resp_body)
+
+        except urllib.error.HTTPError as e:
+            logger.error(f"❌ <<< {e.code} Error in get_credits")
+            return ApiResponse(success=False, message=f"HTTP {e.code}")
+        except Exception as e:
+            logger.error(f"❌ <<< get_credits exception: {e}")
+            return ApiResponse(success=False, message=str(e))
+
