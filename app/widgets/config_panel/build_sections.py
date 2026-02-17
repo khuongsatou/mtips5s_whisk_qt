@@ -355,6 +355,16 @@ class BuildSectionsMixin:
         file_row.addWidget(self._file_btn)
         self._prompt_section.add_layout(file_row)
 
+        # AI Prompt generator button
+        ai_prompt_row = QHBoxLayout()
+        ai_prompt_row.setSpacing(8)
+        self._ai_prompt_btn = QPushButton(f"💡 {self.translator.t('prompt_gen.button')}")
+        self._ai_prompt_btn.setObjectName("secondary_button")
+        self._ai_prompt_btn.setCursor(Qt.PointingHandCursor)
+        self._ai_prompt_btn.clicked.connect(self._on_open_prompt_generator)
+        ai_prompt_row.addWidget(self._ai_prompt_btn)
+        self._prompt_section.add_layout(ai_prompt_row)
+
         # Prompt
         self._prompt_label = QLabel(f"💬 {self.translator.t('config.prompt')}")
         self._prompt_label.setObjectName("config_label")

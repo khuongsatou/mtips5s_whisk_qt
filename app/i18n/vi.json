@@ -208,5 +208,11 @@
     "dashboard.error_summary": "Tóm Tắt Lỗi",
     "dashboard.no_tasks": "Chưa có task nào",
     "dashboard.per_project": "Theo Dự Án",
-    "dashboard.no_errors": "Không có lỗi — mọi task đang chạy tốt!"
+    "dashboard.no_errors": "Không có lỗi — mọi task đang chạy tốt!",
+
+    "prompt_gen.title": "💡 Tạo Prompt AI",
+    "prompt_gen.button": "AI Prompt",
+    "prompt_gen.template_label": "Mẫu Prompt Tuỳ Chỉnh",
+    "prompt_gen.idea_label": "Ý Tưởng Của Bạn",
+    "prompt_gen.idea_placeholder": "Nhập ý tưởng của bạn ở đây..."
 }

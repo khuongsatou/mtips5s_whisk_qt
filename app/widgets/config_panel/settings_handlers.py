@@ -82,6 +82,14 @@ class SettingsHandlersMixin:
             result.extend(self._preloaded_media_inputs.get(cat, []))
         return result
 
+    # --- Prompt generator dialog ---
+
+    def _on_open_prompt_generator(self):
+        """Open the AI prompt generator dialog."""
+        from app.widgets.prompt_generator_dialog import PromptGeneratorDialog
+        dlg = PromptGeneratorDialog(self.translator, parent=self)
+        dlg.exec()
+
     # --- File / folder dialogs ---
 
     def _on_load_file(self):
@@ -388,6 +396,7 @@ class SettingsHandlersMixin:
         self._delay_label.setText(self.translator.t('config.delay'))
         self._auto_retry_cb.setText(self.translator.t('config.auto_retry'))
         self._file_btn.setText(f"📄 {self.translator.t('config.load_file')}")
+        self._ai_prompt_btn.setText(f"💡 {self.translator.t('prompt_gen.button')}")
         self._prompt_label.setText(f"💬 {self.translator.t('config.prompt')}")
         self._prompt_input.setPlaceholderText(self.translator.t("config.prompt_placeholder"))
         self._prefix_label.setText(f"🏷️ {self.translator.t('config.filename_prefix')}")

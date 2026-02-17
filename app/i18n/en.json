@@ -208,5 +208,11 @@
     "dashboard.error_summary": "Error Summary",
     "dashboard.no_tasks": "No tasks yet",
     "dashboard.per_project": "Per Project",
-    "dashboard.no_errors": "No errors — all tasks running smoothly!"
+    "dashboard.no_errors": "No errors — all tasks running smoothly!",
+
+    "prompt_gen.title": "💡 AI Prompt Generator",
+    "prompt_gen.button": "AI Prompt",
+    "prompt_gen.template_label": "Custom Prompt Template",
+    "prompt_gen.idea_label": "Your Idea",
+    "prompt_gen.idea_placeholder": "Enter your idea here..."
 }
