@@ -191,6 +191,9 @@ class MainWindow(QMainWindow):
             "page": page,
         })
 
+        # Connect queue updates → dashboard refresh
+        page.queue_data_changed.connect(self._dashboard.refresh_data)
+
         # Add to tab bar
         tab_index = self._tab_bar.add_tab(str(flow_id), flow_name)
 

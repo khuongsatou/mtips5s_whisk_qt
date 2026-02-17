@@ -14,7 +14,7 @@ import time
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from app.widgets.config_panel import ConfigPanel
 from app.widgets.task_queue_table import TaskQueueTable
 from app.widgets.queue_toolbar import QueueToolbar
@@ -28,6 +28,8 @@ logger = logging.getLogger("whisk.image_creator")
 
 class ImageCreatorPage(PageHandlersMixin, QWidget):
     """Main image creator page with config panel, queue table, and toolbar."""
+
+    queue_data_changed = Signal()  # Emitted when queue data is refreshed
 
     MAX_RETRIES = 2  # Max retry attempts (3 total = 1 original + 2 retries)
 
@@ -178,3 +180,4 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
                         })
                         logger.info(f"🔧 Fixed stuck task {t['id'][:8]}... → error")
             self._table.load_data(tasks)
+            self.queue_data_changed.emit()
