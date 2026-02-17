@@ -441,6 +441,12 @@ QLabel#header_user_label {
     color: {{color-primary-light}};
     padding: 4px 8px;
 }
+QLabel#header_version_label {
+    font-size: 11px;
+    font-weight: 500;
+    color: {{text-secondary}};
+    padding: 4px 6px;
+}
 QLabel#header_credits_label {
     font-size: 12px;
     font-weight: 600;

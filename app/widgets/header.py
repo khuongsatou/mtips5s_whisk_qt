@@ -115,6 +115,12 @@ class Header(QWidget):
 
         layout.addWidget(lang_container)
 
+        # Version label (far right)
+        self._version_label = QLabel(self.translator.t("app.version"))
+        self._version_label.setObjectName("header_version_label")
+        self._version_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        layout.addWidget(self._version_label)
+
     def _theme_label(self) -> str:
         """Get the theme toggle button label."""
         if self.theme_manager.is_dark:
@@ -151,6 +157,7 @@ class Header(QWidget):
         # Sync language button states
         for lc, btn in self._lang_flags.items():
             btn.setChecked(lc == self.translator.current_language)
+        self._version_label.setText(self.translator.t("app.version"))
 
     def set_active_project_name(self, name: str):
         """Update the active project label in the header."""

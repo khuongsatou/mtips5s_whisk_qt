@@ -75,10 +75,6 @@ class Sidebar(QWidget):
         self._branding.setObjectName("sidebar_branding")
         title_col.addWidget(self._branding)
 
-        self._subtitle = QLabel(self.translator.t("app.version"))
-        self._subtitle.setObjectName("sidebar_subtitle")
-        title_col.addWidget(self._subtitle)
-
         logo_row.addLayout(title_col)
         layout.addLayout(logo_row)
 
@@ -134,7 +130,6 @@ class Sidebar(QWidget):
             self.setFixedWidth(64)
 
             self._title.setVisible(False)
-            self._subtitle.setVisible(False)
             self._branding.setVisible(False)
 
             for key, icon, label_key in self.NAV_ITEMS:
@@ -166,7 +161,6 @@ class Sidebar(QWidget):
             self._title.style().unpolish(self._title)
             self._title.style().polish(self._title)
 
-            self._subtitle.setVisible(True)
             self._branding.setVisible(True)
 
             for key, icon, label_key in self.NAV_ITEMS:
@@ -209,7 +203,7 @@ class Sidebar(QWidget):
 
     def retranslate(self):
         """Update all text when language changes."""
-        self._subtitle.setText(self.translator.t("app.version"))
+        pass  # version now lives in header
         if not self._collapsed:
             for key, icon, label_key in self.NAV_ITEMS:
                 self._buttons[key].setText(f"  {icon}  {self.translator.t(label_key)}")
