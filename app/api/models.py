@@ -31,6 +31,7 @@ class TaskItem:
     output_folder: str = ""                     # Folder to save generated images
     filename_prefix: str = ""                   # Prefix for filenames
     created_at: datetime = field(default_factory=datetime.now)
+    completed_at: str = ""                      # ISO timestamp when task completed/errored
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
@@ -53,6 +54,7 @@ class TaskItem:
             "output_folder": self.output_folder,
             "filename_prefix": self.filename_prefix,
             "created_at": self.created_at.isoformat(),
+            "completed_at": self.completed_at,
         }
 
     @classmethod
@@ -75,7 +77,9 @@ class TaskItem:
             aspect_ratio=data.get("aspect_ratio", "16:9"),
             quality=data.get("quality", "1K"),
             reference_images=data.get("reference_images", []),
+            reference_images_by_cat=data.get("reference_images_by_cat", {"title": [], "scene": [], "style": []}),
             prompt=data.get("prompt", ""),
+            images_per_prompt=data.get("images_per_prompt", 1),
             output_images=data.get("output_images", []),
             status=data.get("status", "pending"),
             progress=data.get("progress", 0),
@@ -84,6 +88,7 @@ class TaskItem:
             output_folder=data.get("output_folder", ""),
             filename_prefix=data.get("filename_prefix", ""),
             created_at=created,
+            completed_at=data.get("completed_at", ""),
         )
 
 

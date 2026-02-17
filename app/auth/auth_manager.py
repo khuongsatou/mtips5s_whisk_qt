@@ -21,6 +21,8 @@ SESSION_FILE = os.path.join(os.path.expanduser("~"), ".whisk_session.json")
 LOGIN_URL = admin_url("auth/login-by-key")
 ME_URL = admin_url("auth/me")
 UPDATE_URL = admin_url("auth")
+REFRESH_URL = admin_url("auth/refresh")
+LOGOUT_URL = admin_url("auth/logout")
 
 
 @dataclass
@@ -86,6 +88,7 @@ class AuthManager(QObject):
     login_success = Signal(object)   # Emits UserSession
     login_failed = Signal(str)       # Emits error message
     logged_out = Signal()
+    on_token_refreshed = Signal(str)  # Emits new access_token
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -100,19 +103,59 @@ class AuthManager(QObject):
         return self._session is not None and self._session.is_valid
 
     def try_restore_session(self) -> bool:
-        """Try to restore a saved session from disk. Returns True if restored."""
+        """Try to restore session with auto-recovery cascade.
+
+        Recovery order:
+        1. Load session from disk → validate with /auth/me
+        2. If access_token expired → refresh with refresh_token
+        3. If refresh_token expired → re-login with saved key_code
+        4. If all fail → return False (show login dialog)
+        """
         try:
-            if os.path.exists(SESSION_FILE):
-                with open(SESSION_FILE, "r") as f:
-                    data = json.load(f)
-                session = UserSession.from_dict(data)
-                if session.is_valid:
-                    self._session = session
+            if not os.path.exists(SESSION_FILE):
+                return False
+            with open(SESSION_FILE, "r") as f:
+                data = json.load(f)
+            session = UserSession.from_dict(data)
+            if not (session.access_token or session.key_code):
+                return False
+
+            self._session = session
+
+            # Step 1: Validate current access_token via /auth/me
+            if self._session.access_token and self.fetch_user_info():
+                logger.info("✅ Session restored — access token valid")
+                self.login_success.emit(self._session)
+                return True
+
+            # Step 2: Try refresh_token
+            if self._session.refresh_token:
+                success, _ = self.refresh_token()
+                if success:
+                    self.fetch_user_info()  # Update user info with new token
+                    logger.info("🔄 Session restored via token refresh")
                     self.login_success.emit(self._session)
                     return True
-        except (json.JSONDecodeError, IOError, KeyError):
-            pass
-        return False
+
+            # Step 3: Re-login with saved key_code
+            saved_key = self._session.key_code
+            if saved_key:
+                logger.info("🔑 Attempting auto-login with saved key_code...")
+                self._session = None  # Clear expired session
+                success, msg = self.login(saved_key)
+                if success:
+                    logger.info("✅ Auto-login with key_code successful")
+                    # login() already emits login_success
+                    return True
+                logger.warning(f"❌ Auto-login with key_code failed: {msg}")
+
+            # All recovery steps failed
+            self._session = None
+            return False
+
+        except (json.JSONDecodeError, IOError, KeyError) as e:
+            logger.warning(f"⚠️ Failed to restore session file: {e}")
+            return False
 
     def login(self, key_code: str) -> tuple:
         """
@@ -195,7 +238,26 @@ class AuthManager(QObject):
             return False, msg
 
     def logout(self):
-        """Clear session and remove saved file."""
+        """Call server-side logout, then clear local session and file."""
+        # Fire-and-forget server logout (don't block on failure)
+        if self._session and self._session.access_token:
+            try:
+                req = urllib.request.Request(
+                    LOGOUT_URL,
+                    data=b"",
+                    headers={
+                        "Accept": "application/json",
+                        "Authorization": f"Bearer {self._session.access_token}",
+                    },
+                    method="POST",
+                )
+                logger.info(f"📤 >>> POST {LOGOUT_URL}")
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                logger.info(f"📥 <<< {resp.status} {body.get('message', 'OK')}")
+            except Exception as e:
+                logger.warning(f"⚠️ Server logout failed (ignored): {e}")
+
         self._session = None
         try:
             if os.path.exists(SESSION_FILE):
@@ -203,6 +265,59 @@ class AuthManager(QObject):
         except IOError:
             pass
         self.logged_out.emit()
+
+    def refresh_token(self) -> tuple[bool, str]:
+        """
+        Refresh access_token using the stored refresh_token.
+        Calls POST /auth/refresh with refresh_token in Bearer header.
+        Returns (success, new_access_token_or_error_message).
+        """
+        if not self._session or not self._session.refresh_token:
+            return False, "No refresh token available"
+
+        try:
+            req = urllib.request.Request(
+                REFRESH_URL,
+                data=b"",
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {self._session.refresh_token}",
+                },
+                method="POST",
+            )
+            logger.info(f"📤 >>> POST {REFRESH_URL}")
+
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+
+            new_token = body.get("access_token", "")
+            if not new_token:
+                return False, "Server returned empty access_token"
+
+            logger.info(f"📥 <<< {resp.status} Token refreshed")
+            self._session.access_token = new_token
+            self._save_session()
+            self.on_token_refreshed.emit(new_token)
+            return True, new_token
+
+        except urllib.error.HTTPError as e:
+            try:
+                error_body = json.loads(e.read().decode("utf-8"))
+                error_msg = error_body.get("message", f"HTTP {e.code}")
+            except Exception:
+                error_msg = f"HTTP {e.code}"
+            logger.error(f"❌ <<< Refresh failed: {e.code} {error_msg}")
+            return False, error_msg
+
+        except urllib.error.URLError as e:
+            msg = "Cannot connect to server"
+            logger.error(f"❌ <<< Refresh connection failed: {e.reason}")
+            return False, msg
+
+        except Exception as e:
+            msg = str(e)
+            logger.error(f"❌ <<< Refresh exception: {msg}")
+            return False, msg
 
     def fetch_user_info(self) -> bool:
         """Fetch current user info from /auth/me and update session."""

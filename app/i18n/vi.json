@@ -32,6 +32,12 @@
     "config.ref_title": "Thư mục ảnh Title",
     "config.ref_scene": "Thư mục ảnh Scene",
     "config.ref_style": "Thư mục ảnh Style",
+    "config.ref_mode_single": "Đơn (dùng chung)",
+    "config.ref_mode_multiple": "Nhiều (mỗi row)",
+    "config.ref_get_id": "📤 Lấy ID",
+    "config.ref_id_ready": "✅ {count} IDs đã sẵn sàng",
+    "config.ref_id_getting": "⏳ Đang upload…",
+    "config.ref_id_error": "❌ Upload thất bại",
     "config.toggle_panel": "Thu gọn/mở rộng cấu hình",
 
     "queue.stt": "STT",

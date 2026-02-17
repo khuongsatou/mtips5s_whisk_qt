@@ -8,163 +8,16 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QHBoxLayout, QVBoxLayout, QGridLayout, QLabel, QPushButton, QCheckBox,
     QAbstractItemView, QSizePolicy, QProgressBar, QFrame,
-    QStyledItemDelegate, QTextEdit, QDialog, QScrollArea, QFileDialog,
 )
 from PySide6.QtCore import Signal, Qt, QTimer, QUrl
-from PySide6.QtGui import QPixmap, QScreen, QCursor, QDesktopServices
+from PySide6.QtGui import QPixmap, QCursor, QDesktopServices
 import os
-import shutil
 import urllib.parse
 from PySide6.QtWidgets import QApplication
 from app.widgets.reference_image_grid import ReferenceImageGrid
-
-
-class ClickableLabel(QLabel):
-    """QLabel that emits a signal when clicked."""
-    clicked = Signal(str)  # image_path
-
-    def __init__(self, image_path: str = "", parent=None):
-        super().__init__(parent)
-        self._image_path = image_path
-        self.setCursor(Qt.PointingHandCursor)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and self._image_path:
-            self.clicked.emit(self._image_path)
-        super().mousePressEvent(event)
-
-
-class ImagePreviewDialog(QDialog):
-    """Modal dialog to preview an image at full size."""
-
-    def __init__(self, image_path: str, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Image Preview")
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
-        self.setModal(True)
-        self.setMinimumSize(480, 400)
-
-        self._image_path = image_path
-
-        # Get screen size for sensible dialog dimensions
-        screen_size = self.screen().availableGeometry()
-        max_w = int(screen_size.width() * 0.85)
-        max_h = int(screen_size.height() * 0.85)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # Scrollable image area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setAlignment(Qt.AlignCenter)
-        scroll.setStyleSheet("background: #1a1a2e; border: none;")
-
-        img_label = QLabel()
-        img_label.setAlignment(Qt.AlignCenter)
-        pixmap = QPixmap(image_path)
-        if not pixmap.isNull():
-            scaled = pixmap.scaled(
-                max_w, max_h - 60, Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
-            img_label.setPixmap(scaled)
-        else:
-            img_label.setText("Could not load image")
-            img_label.setStyleSheet("color: #999; font-size: 16px;")
-
-        scroll.setWidget(img_label)
-        layout.addWidget(scroll, 1)
-
-        # Bottom toolbar (solid background, no overlap)
-        toolbar = QWidget()
-        toolbar.setFixedHeight(52)
-        toolbar.setStyleSheet("""
-            QWidget {
-                background: #2D2D44;
-                border-top: 1px solid #3D3D5C;
-            }
-        """)
-        toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(12, 8, 12, 8)
-        toolbar_layout.setSpacing(10)
-
-        # Download button
-        dl_btn = QPushButton("💾 Download")
-        dl_btn.setCursor(Qt.PointingHandCursor)
-        dl_btn.setFixedSize(140, 36)
-        dl_btn.setStyleSheet("""
-            QPushButton {
-                background: #7C3AED;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 600;
-            }
-            QPushButton:hover { background: #6D28D9; }
-            QPushButton:pressed { background: #5B21B6; }
-        """)
-        dl_btn.clicked.connect(self._on_download)
-        toolbar_layout.addWidget(dl_btn)
-
-        toolbar_layout.addStretch()
-
-        # Close button
-        close_btn = QPushButton("✕ Close")
-        close_btn.setCursor(Qt.PointingHandCursor)
-        close_btn.setFixedSize(100, 36)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: #EF4444;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 600;
-            }
-            QPushButton:hover { background: #DC2626; }
-            QPushButton:pressed { background: #B91C1C; }
-        """)
-        close_btn.clicked.connect(self.close)
-        toolbar_layout.addWidget(close_btn)
-
-        layout.addWidget(toolbar)
-
-        self.resize(min(pixmap.width() + 40, max_w), min(pixmap.height() + 100, max_h))
-
-    def _on_download(self):
-        """Save the previewed image to a user-chosen location."""
-        if not self._image_path or not os.path.isfile(self._image_path):
-            return
-        basename = os.path.basename(self._image_path)
-        default_path = os.path.join(os.path.expanduser("~/Downloads"), basename)
-        dest, _ = QFileDialog.getSaveFileName(
-            self, "Save Image", default_path,
-            "Images (*.png *.jpg *.jpeg *.webp);;All Files (*)",
-        )
-        if dest:
-            shutil.copy2(self._image_path, dest)
-
-
-class PromptDelegate(QStyledItemDelegate):
-    """Custom delegate that uses a QTextEdit for multi-line prompt editing."""
-
-    def createEditor(self, parent, option, index):
-        editor = QTextEdit(parent)
-        editor.setObjectName("prompt_editor")
-        editor.setAcceptRichText(False)
-        return editor
-
-    def setEditorData(self, editor, index):
-        text = index.data(Qt.DisplayRole) or ""
-        editor.setPlainText(text)
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.toPlainText(), Qt.EditRole)
-
-    def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(option.rect)
+from app.widgets.task_queue_table.helpers import (
+    ClickableLabel, ImagePreviewDialog, PromptDelegate,
+)
 
 
 class TaskQueueTable(QTableWidget):
@@ -203,6 +56,7 @@ class TaskQueueTable(QTableWidget):
         self._current_page: int = 0  # 0-indexed
         self._search_text: str = ""
         self._status_filter: str = ""  # empty = all
+        self._sort_done_at: str = "desc"  # "desc" (newest first), "asc" (oldest first)
         self.setObjectName("task_queue_table")
         self._setup_table()
         self.cellChanged.connect(self._on_cell_changed)
@@ -274,6 +128,10 @@ class TaskQueueTable(QTableWidget):
                 # Add copy icon to Prompt header
                 if idx == 4:
                     label = f"📋 {label}"
+                # Add sort icon to Done At header
+                if idx == 8:
+                    icon = "🔽" if self._sort_done_at == "desc" else "🔼"
+                    label = f"{icon} {label}"
                 headers.append(label)
             else:
                 headers.append("")
@@ -283,11 +141,12 @@ class TaskQueueTable(QTableWidget):
         """Populate the table with task data using pagination + differential updates."""
         self._all_tasks = tasks
 
-        # Sort: running first → completed_at desc (newest) → pending last
+        # Sort: running first → completed_at (user-chosen direction) → pending last
         running = [t for t in tasks if t.get("status") == "running"]
         with_time = [t for t in tasks if t.get("status") != "running" and t.get("completed_at")]
         without_time = [t for t in tasks if t.get("status") != "running" and not t.get("completed_at")]
-        with_time.sort(key=lambda t: t.get("completed_at", ""), reverse=True)
+        is_desc = self._sort_done_at == "desc"
+        with_time.sort(key=lambda t: t.get("completed_at", ""), reverse=is_desc)
         self._all_tasks = running + with_time + without_time
 
         filtered = self._get_filtered_tasks()
@@ -603,7 +462,11 @@ class TaskQueueTable(QTableWidget):
 
             if status == "running":
                 pbar.setValue(progress_pct)
-                pbar.setFormat(f"{progress_pct}%  Processing…")
+                upload_status = task.get("upload_status", "")
+                if upload_status:
+                    pbar.setFormat(upload_status)
+                else:
+                    pbar.setFormat(f"{progress_pct}%  Processing…")
             else:
                 pbar.setValue(100)
                 pbar.setFormat("100%")
@@ -741,9 +604,18 @@ class TaskQueueTable(QTableWidget):
         QDesktopServices.openUrl(QUrl(url))
 
     def _on_header_click(self, section: int):
-        """Handle header click — Prompt column (4) copies all filtered prompts."""
+        """Handle header click — Prompt column (4) copies, Done At (8) sorts."""
         if section == 4:  # Prompt column
             self._copy_all_prompts()
+        elif section == 8:  # Done At column
+            self._toggle_done_at_sort()
+
+    def _toggle_done_at_sort(self):
+        """Toggle sort direction for the Done At column and refresh."""
+        self._sort_done_at = "asc" if self._sort_done_at == "desc" else "desc"
+        self._current_data = None  # Force full rebuild
+        self._update_headers()
+        self.load_data(self._all_tasks)
 
     def _copy_all_prompts(self):
         """Copy all prompts (filtered) to clipboard."""
@@ -771,7 +643,8 @@ class TaskQueueTable(QTableWidget):
 
     def update_task_progress(self, task_id: str, progress: int, status: str,
                              error_message: str = "",
-                             elapsed_seconds: int = 0):
+                             elapsed_seconds: int = 0,
+                             upload_status: str = ""):
         """Update only the progress column for a specific task (no full rebuild)."""
         # Also update in the full task list cache for consistency
         for t in self._all_tasks:
@@ -834,14 +707,17 @@ class TaskQueueTable(QTableWidget):
         if pbar is not None:
             if status == "running":
                 pbar.setValue(progress)
-                pbar.setFormat(f"{progress}%  Processing…")
+                if upload_status:
+                    pbar.setFormat(upload_status)
+                else:
+                    pbar.setFormat(f"{progress}%  Processing…")
             elif status == "completed":
                 pbar.setValue(100)
                 pbar.setFormat("100%")
 
         # Update or create elapsed timer label
         if status == "running" and elapsed_seconds >= 0:
-            timeout = 120
+            timeout = 60
             # Find existing elapsed label or create one
             elapsed_label = None
             for i in range(layout.count()):

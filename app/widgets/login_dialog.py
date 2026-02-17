@@ -94,7 +94,7 @@ class LoginDialog(QDialog):
         show_row.addWidget(self._show_btn)
         layout.addLayout(show_row)
 
-        layout.addSpacing(16)
+        layout.addSpacing(12)
 
         # Status message
         self._status_label = QLabel("")
@@ -103,6 +103,8 @@ class LoginDialog(QDialog):
         self._status_label.setWordWrap(True)
         self._status_label.setVisible(False)
         layout.addWidget(self._status_label)
+
+        layout.addSpacing(10)
 
         # Login button
         self._login_btn = QPushButton(f"🔑 {self.translator.t('login.button')}")

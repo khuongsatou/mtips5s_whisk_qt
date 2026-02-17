@@ -73,6 +73,15 @@ def main():
         workflow_api.set_access_token(token)
         logger.info("🔑 Real API clients updated with access token")
 
+        # Auto-update API clients when token is refreshed
+        def _on_token_refreshed(new_token: str):
+            flow_api.set_access_token(new_token)
+            cookie_api.set_access_token(new_token)
+            workflow_api.set_access_token(new_token)
+            logger.info("🔄 API clients updated with refreshed token")
+
+        auth_manager.on_token_refreshed.connect(_on_token_refreshed)
+
         # Create and show main window (user is now authenticated)
         window = MainWindow(
             theme_manager, translator, api, auth_manager,

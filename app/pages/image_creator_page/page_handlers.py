@@ -1,392 +1,29 @@
 """
-Whisk Desktop — Image Creator Page.
+Whisk Desktop — Image Creator Page Handlers.
 
-Full-featured page: left config panel, right table + toolbar.
-Background worker generates images via WorkflowApiClient and saves to disk.
+Mixin class providing queue operations, workflow management,
+generation execution, auto-retry, download, and auth helpers
+for ImageCreatorPage.
 """
-import base64
 import logging
 import os
+import random
 import shutil
 import time
-import random
+
+from PySide6.QtWidgets import QFileDialog
+from PySide6.QtCore import QSettings
+
 from app.prompt_normalizer import PromptNormalizer
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
-    QFileDialog,
-)
-from PySide6.QtCore import Qt, QThread, Signal as QSignal, QTimer, QSettings
-from app.widgets.config_panel import ConfigPanel
-from app.widgets.task_queue_table import TaskQueueTable
-from app.widgets.queue_toolbar import QueueToolbar
-from app.widgets.log_panel import LogPanel
 from app.widgets.styled_message_box import StyledMessageBox
-from app.widgets.toast_notification import ToastNotification
 
 logger = logging.getLogger("whisk.image_creator")
 
 
-# ── Background worker for image generation ───────────────────────────
+class PageHandlersMixin:
+    """Mixin providing event handlers for ImageCreatorPage."""
 
-
-class GenerationWorker(QThread):
-    """Runs image generation API calls in background threads with concurrency."""
-
-    # (task_id, progress_pct, status, extra_data)
-    task_progress = QSignal(str, int, str, dict)
-    finished_all = QSignal()
-
-    def __init__(
-        self,
-        workflow_api,
-        google_token: str,
-        workflow_id: str,
-        tasks: list,
-        concurrency: int = 2,
-        workflow_name: str = "",
-        flow_name: str = "",
-        parent=None,
-    ):
-        super().__init__(parent)
-        self.workflow_api = workflow_api
-        self.google_token = google_token
-        self.workflow_id = workflow_id
-        self.workflow_name = workflow_name
-        self.flow_name = flow_name
-        self.tasks = tasks
-        self.concurrency = max(1, concurrency)
-        self._stop_flag = False
-
-    def stop(self):
-        self._stop_flag = True
-
-    TASK_TIMEOUT = 120  # 2 minutes per task
-
-    def run(self):
-        logger.info(f"🏃 Worker starting with concurrency={self.concurrency} for {len(self.tasks)} tasks")
-        with ThreadPoolExecutor(max_workers=self.concurrency) as pool:
-            futures = {
-                pool.submit(self._process_task, task): task
-                for task in self.tasks
-            }
-            for future in as_completed(futures):
-                if self._stop_flag:
-                    break
-                task = futures[future]
-                task_id = task.get("id", "")
-                try:
-                    future.result()
-                except Exception as exc:
-                    # Catch any unhandled exceptions from _process_task
-                    logger.error(f"❌ Task {task_id} unexpected error: {exc}")
-        self.finished_all.emit()
-
-    def _process_task(self, task: dict):
-        """Process a single task (runs in a thread pool thread)."""
-        if self._stop_flag:
-            return
-
-        task_id = task.get("id", "")
-        prompt = task.get("prompt", "")
-        aspect_ratio = task.get("aspect_ratio", "16:9")
-        images_per_prompt = task.get("images_per_prompt", 1)
-        output_folder = task.get("output_folder", "")
-        filename_prefix = task.get("filename_prefix", "")
-
-        # Mark as running with initial progress 10-15%
-        initial_pct = random.randint(10, 15)
-        self.task_progress.emit(task_id, initial_pct, "running", {})
-
-        start_time = time.time()
-
-        try:
-            saved_paths = []
-            for img_idx in range(images_per_prompt):
-                if self._stop_flag:
-                    break
-
-                # Check timeout before making API call
-                elapsed = time.time() - start_time
-                if elapsed >= self.TASK_TIMEOUT:
-                    raise TimeoutError(
-                        f"Task timeout ({self.TASK_TIMEOUT}s). "
-                        "Hãy thử đổi prompt khác / Try a different prompt."
-                    )
-
-                gen_resp = self.workflow_api.generate_image(
-                    google_access_token=self.google_token,
-                    workflow_id=self.workflow_id,
-                    prompt=prompt,
-                    aspect_ratio=aspect_ratio,
-                )
-
-                if not gen_resp.success:
-                    error_msg = gen_resp.message or "Generation failed"
-                    # Check if it's a server-side timeout/creating stuck
-                    if any(kw in error_msg.lower() for kw in ["timeout", "creating", "timed out"]):
-                        raise TimeoutError(
-                            f"{error_msg}. "
-                            "Hãy thử đổi prompt khác / Try a different prompt."
-                        )
-                    raise Exception(error_msg)
-
-                # Save image to file
-                encoded_image = gen_resp.data.get("encoded_image", "")
-                if encoded_image:
-                    # Default: ~/Downloads/whisk_pro/project_name/
-                    if not output_folder:
-                        base = os.path.join(
-                            os.path.expanduser("~"), "Downloads", "whisk_pro"
-                        )
-                        if self.workflow_name:
-                            # Sanitize project name for filesystem
-                            safe_wf = self.workflow_name.replace("/", "_").replace(":", "_").strip()
-                            if self.flow_name:
-                                safe_flow = self.flow_name.replace("/", "_").replace(":", "_").strip()
-                                folder_name = f"{safe_flow}_{safe_wf}"
-                            else:
-                                folder_name = safe_wf
-                            save_folder = os.path.join(base, folder_name)
-                        elif self.flow_name:
-                            safe_flow = self.flow_name.replace("/", "_").replace(":", "_").strip()
-                            save_folder = os.path.join(base, safe_flow)
-                        else:
-                            save_folder = base
-                    else:
-                        save_folder = output_folder
-                    saved_path = self._save_image(
-                        encoded_image, save_folder,
-                        filename_prefix, task.get("stt", 0), img_idx,
-                    )
-                    saved_paths.append(saved_path)
-                    logger.info(f"💾 Image saved: {saved_path}")
-
-            elapsed = int(time.time() - start_time)
-            self.task_progress.emit(task_id, 100, "completed", {
-                "elapsed_seconds": elapsed,
-                "output_images": saved_paths,
-            })
-
-        except Exception as e:
-            elapsed = int(time.time() - start_time)
-            logger.error(f"❌ Task {task_id} failed: {e}")
-            self.task_progress.emit(task_id, 0, "error", {
-                "elapsed_seconds": elapsed,
-                "error_message": str(e),
-            })
-
-    @staticmethod
-    def _save_image(
-        encoded_image: str,
-        output_folder: str,
-        prefix: str,
-        stt: int,
-        img_idx: int,
-    ) -> str:
-        """Save base64 encoded image to output folder."""
-        os.makedirs(output_folder, exist_ok=True)
-
-        parts = []
-        if prefix:
-            # Strip file extension from prefix (e.g. "{{number}}.png" → "{{number}}")
-            prefix = os.path.splitext(prefix)[0]
-            parts.append(prefix)
-        parts.append(f"{stt:03d}")
-        if img_idx > 0:
-            parts.append(f"{img_idx + 1}")
-        filename = "_".join(parts) + ".png"
-        filepath = os.path.join(output_folder, filename)
-
-        image_data = base64.b64decode(encoded_image)
-        with open(filepath, "wb") as f:
-            f.write(image_data)
-
-        return filepath
-
-
-# ── Main Page ────────────────────────────────────────────────────────
-
-
-class ImageCreatorPage(QWidget):
-    """Main image creator page with config panel, queue table, and toolbar."""
-
-    MAX_RETRIES = 2  # Max retry attempts (3 total = 1 original + 2 retries)
-
-    def __init__(self, translator, api, parent=None,
-                 workflow_api=None, cookie_api=None, active_flow_id=None,
-                 flow_name: str = ""):
-        super().__init__(parent)
-        self.translator = translator
-        self.api = api
-        self.workflow_api = workflow_api
-        self.cookie_api = cookie_api
-        self._active_flow_id = active_flow_id
-        self._flow_name: str = flow_name  # Project/flow name (e.g., "accc")
-        self._workflow_id: str = ""  # Set during workflow creation or loaded from server
-        self._workflow_name: str = ""  # Workflow name from Labs (e.g., "Whisk: 2/16/26")
-        self.translator.language_changed.connect(self.retranslate)
-        self._selected_ids: list[str] = []
-        self._is_generating = False
-        self._worker: GenerationWorker | None = None
-        self._running_task_ids: set[str] = set()
-        self._local_progress: dict[str, int] = {}  # tid → estimated %
-        self._task_start_times: dict[str, float] = {}  # tid → time.time()
-        self._progress_timer = QTimer(self)
-        self._progress_timer.setInterval(500)  # tick every 500ms
-        self._progress_timer.timeout.connect(self._tick_progress)
-
-        # Auto-retry state
-        self._retry_counts: dict[str, int] = {}  # task_id → attempt count
-        self._auto_retry_timer = QTimer(self)
-        self._auto_retry_timer.setSingleShot(True)
-        self._auto_retry_timer.setInterval(60_000)  # 60 seconds
-        self._auto_retry_timer.timeout.connect(self._do_auto_retry)
-
-        self._setup_ui()
-        self._connect_signals()
-        # Restore persisted workflow if flow_id is known
-        if self._active_flow_id:
-            self._load_workflow(self._active_flow_id)
-        self.refresh_data()
-
-    def set_active_flow_id(self, flow_id):
-        """Update the active flow ID (called when project changes)."""
-        self._active_flow_id = int(flow_id) if flow_id else None
-        # Restore persisted workflow for this flow
-        if self._active_flow_id:
-            self._load_workflow(self._active_flow_id)
-
-    # ── Workflow Persistence ─────────────────────────────────────────
-
-    def _save_workflow(self, flow_id: int, workflow_id: str, workflow_name: str):
-        """Persist workflow data to QSettings keyed by flow_id."""
-        s = QSettings("Whisk", "Workflows")
-        s.setValue(f"flow_{flow_id}/workflow_id", workflow_id)
-        s.setValue(f"flow_{flow_id}/workflow_name", workflow_name)
-        s.sync()
-        logger.info(f"💾 Workflow saved: flow={flow_id} → {workflow_id}")
-
-    def _load_workflow(self, flow_id: int):
-        """Restore workflow data from QSettings for the given flow_id."""
-        s = QSettings("Whisk", "Workflows")
-        wf_id = s.value(f"flow_{flow_id}/workflow_id", "")
-        wf_name = s.value(f"flow_{flow_id}/workflow_name", "")
-
-        if wf_id:
-            self._workflow_id = wf_id
-            self._workflow_name = wf_name
-            logger.info(f"📂 Workflow restored: flow={flow_id} → {wf_id}")
-            # Update config panel to show linked status
-            if hasattr(self, "_config"):
-                self._config.set_workflow_status(
-                    f"✅ Workflow linked\n{wf_id[:16]}..."
-                )
-        else:
-            self._workflow_id = ""
-            self._workflow_name = ""
-
-    def _setup_ui(self):
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        self._splitter = QSplitter(Qt.Horizontal)
-        self._splitter.setObjectName("main_splitter")
-
-        # Left: Config panel
-        self._config = ConfigPanel(self.translator)
-        self._config.setMinimumWidth(180)
-        self._config.setMaximumWidth(700)
-        self._splitter.addWidget(self._config)
-
-        # Right: Table + Toolbar
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
-
-        self._table = TaskQueueTable(self.translator)
-        right_layout.addWidget(self._table, 1)
-
-        self._toolbar = QueueToolbar(self.translator)
-        right_layout.addWidget(self._toolbar)
-
-        # Log panel at bottom
-        self._log_panel = LogPanel()
-        right_layout.addWidget(self._log_panel)
-
-        self._splitter.addWidget(right_widget)
-
-        # Toast notification (overlays on top of right panel)
-        self._toast = ToastNotification(right_widget)
-        right_widget.setMinimumWidth(200)
-
-        # Initial sizes: ~400px config, rest for table
-        self._splitter.setSizes([400, 800])
-        self._splitter.setStretchFactor(0, 0)  # Config: fixed size
-        self._splitter.setStretchFactor(1, 1)   # Table: stretch to fill
-
-        outer.addWidget(self._splitter)
-
-    def _connect_signals(self):
-        """Wire config panel, table, and toolbar signals."""
-        # Config → add to queue
-        self._config.add_to_queue.connect(self._on_add_to_queue)
-        self._config.ref_images_picked.connect(self._on_ref_images_picked)
-        self._config.workflow_requested.connect(self._on_workflow_requested)
-
-        # Table selection
-        self._table.task_selected.connect(self._on_selection_changed)
-
-        # Toolbar actions
-        self._toolbar.add_row.connect(self._on_add_row)
-        self._toolbar.delete_selected.connect(self._on_delete_selected)
-        self._toolbar.delete_all.connect(self._on_delete_all)
-        self._toolbar.retry_errors.connect(self._on_retry_errors)
-        self._toolbar.run_selected.connect(self._on_run_selected)
-        self._toolbar.run_all.connect(self._on_run_all)
-        self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
-        self._toolbar.download_all.connect(self._on_download_all)
-        self._toolbar.select_errors.connect(self._table.select_errors)
-
-        # Pagination
-        self._toolbar.prev_page.connect(self._table.prev_page)
-        self._toolbar.next_page.connect(self._table.next_page)
-        self._table.page_changed.connect(self._toolbar.update_page_info)
-        self._table.stats_changed.connect(self._toolbar.update_stats)
-
-        # Search
-        self._toolbar.search_changed.connect(self._table.set_search_filter)
-        self._toolbar.status_filter_changed.connect(self._table.set_status_filter)
-
-        # Table download + open folder
-        self._table.download_clicked.connect(self._on_download)
-        self._table.open_folder_clicked.connect(self._on_open_folder)
-
-        # Table prompt editing
-        self._table.prompt_edited.connect(self._on_prompt_edited)
-
-    def refresh_data(self):
-        """Reload the queue from API."""
-        response = self.api.get_queue()
-        if response.success:
-            tasks = response.data or []
-            # Cleanup stuck tasks: if not generating, any "creating"/"running"
-            # tasks are leftovers from interrupted runs — mark as error
-            if not self._is_generating:
-                for t in tasks:
-                    if t.get("status") in ("creating", "running"):
-                        t["status"] = "error"
-                        t["error_message"] = (
-                            "Task bị gián đoạn. Hãy thử lại hoặc đổi prompt khác."
-                        )
-                        self.api.update_task(t["id"], {
-                            "status": "error",
-                            "error_message": t["error_message"],
-                        })
-                        logger.info(f"🔧 Fixed stuck task {t['id'][:8]}... → error")
-            self._table.load_data(tasks)
+    # ── Queue Operations ──────────────────────────────────────────────
 
     def _on_prompt_edited(self, task_id: str, new_prompt: str):
         """Persist prompt edits from the table to the API store."""
@@ -432,12 +69,53 @@ class ImageCreatorPage(QWidget):
                 "prompt": line,
                 "images_per_prompt": config.get("images_per_prompt", 1),
                 "reference_images": [],
+                "reference_images_by_cat": {
+                    "title": config.get("ref_title_images", []),
+                    "scene": config.get("ref_scene_images", []),
+                    "style": config.get("ref_style_images", []),
+                },
+                "preloaded_media_inputs": config.get("preloaded_media_inputs", []),
                 "output_folder": config.get("output_folder", ""),
                 "filename_prefix": config.get("filename_prefix", ""),
             }
             self.api.add_to_queue(task_data)
 
         self.refresh_data()
+
+    def _on_request_upload_ref(self, category: str, ref_by_cat: dict):
+        """Pre-upload reference images for single mode (background thread)."""
+        google_token, workflow_id, session_token, error = self._get_google_access_token()
+        if error:
+            self._config.set_preloaded_media_inputs(category, [])
+            return
+
+        from app.api.workflow_api import WorkflowApiClient
+        from app.pages.image_creator_page.workers import _RefUploadWorker
+
+        worker = _RefUploadWorker(
+            workflow_api=WorkflowApiClient(),
+            session_token=session_token,
+            workflow_id=workflow_id,
+            ref_by_cat=ref_by_cat,
+            parent=self,
+        )
+        worker._category = category  # store category for callback
+        worker.finished_upload.connect(self._on_ref_upload_done)
+        # Store per-category worker to prevent GC
+        if not hasattr(self, '_ref_upload_workers'):
+            self._ref_upload_workers = {}
+        self._ref_upload_workers[category] = worker
+        worker.start()
+
+    def _on_ref_upload_done(self, media_inputs: list):
+        """Receive results from background ref upload worker."""
+        worker = self.sender()
+        category = getattr(worker, '_category', '')
+        self._config.set_preloaded_media_inputs(category, media_inputs)
+        if hasattr(self, '_ref_upload_workers'):
+            self._ref_upload_workers.pop(category, None)
+        if worker:
+            worker.deleteLater()
 
     def _on_add_row(self):
         """Add an empty row to the queue."""
@@ -606,6 +284,8 @@ class ImageCreatorPage(QWidget):
 
     def _run_tasks(self, task_ids: list[str] | None = None):
         """Start background worker for pending tasks."""
+        from app.pages.image_creator_page.workers import GenerationWorker
+
         if self._is_generating:
             logger.warning("Generation already in progress, ignoring run request")
             return
@@ -618,7 +298,7 @@ class ImageCreatorPage(QWidget):
             return
 
         # Step 1: Get Google access_token from active cookie
-        google_token, workflow_id, error = self._get_google_access_token()
+        google_token, workflow_id, session_token, error = self._get_google_access_token()
         if error:
             StyledMessageBox.warning(self, "Error", error)
             return
@@ -657,6 +337,15 @@ class ImageCreatorPage(QWidget):
             and (task_ids is None or t.get("id") in task_ids)
         ]
 
+        # In single mode, inject current preloaded media IDs into all tasks
+        # so the worker skips re-uploading reference images
+        if self._config._current_ref_mode == "single":
+            preloaded = self._config._get_all_preloaded()
+            if preloaded:
+                for t in pending:
+                    t["preloaded_media_inputs"] = preloaded
+                logger.info(f"🔗 Single mode: injected {len(preloaded)} preloaded ref(s) into {len(pending)} task(s)")
+
         if not pending:
             StyledMessageBox.information(self, "Info", "No pending tasks to run.")
             return
@@ -677,6 +366,7 @@ class ImageCreatorPage(QWidget):
             concurrency=concurrency,
             workflow_name=self._workflow_name,
             flow_name=self._flow_name,
+            session_token=session_token,
             parent=self,
         )
         self._worker.task_progress.connect(self._on_task_progress)
@@ -703,6 +393,12 @@ class ImageCreatorPage(QWidget):
             self._local_progress[task_id] = max(
                 self._local_progress.get(task_id, 0), progress
             )
+            # Track upload_status for ref image uploads
+            upload_status = extra.get("upload_status", "")
+            if upload_status:
+                self._upload_status[task_id] = upload_status
+            elif upload_status == "":
+                self._upload_status.pop(task_id, None)
             if not self._progress_timer.isActive():
                 self._progress_timer.start()
             # Lightweight update — no full table rebuild
@@ -710,12 +406,14 @@ class ImageCreatorPage(QWidget):
             self._table.update_task_progress(
                 task_id, self._local_progress[task_id], status,
                 elapsed_seconds=elapsed,
+                upload_status=self._upload_status.get(task_id, ""),
             )
         else:
             # Task completed or errored — clean up local tracking
             self._running_task_ids.discard(task_id)
             self._local_progress.pop(task_id, None)
             self._task_start_times.pop(task_id, None)
+            self._upload_status.pop(task_id, None)
             # Track retry count for errored tasks
             if status == "error":
                 self._retry_counts[task_id] = self._retry_counts.get(task_id, 0) + 1
@@ -738,6 +436,7 @@ class ImageCreatorPage(QWidget):
             self._table.update_task_progress(
                 tid, self._local_progress.get(tid, 0), "running",
                 elapsed_seconds=elapsed,
+                upload_status=self._upload_status.get(tid, ""),
             )
 
     def _on_worker_finished(self):
@@ -747,6 +446,7 @@ class ImageCreatorPage(QWidget):
         self._running_task_ids.clear()
         self._local_progress.clear()
         self._task_start_times.clear()
+        self._upload_status.clear()
         self._progress_timer.stop()
         logger.info("✅ Generation batch complete")
         self.refresh_data()
@@ -835,12 +535,12 @@ class ImageCreatorPage(QWidget):
 
     # ── Auth helpers ──────────────────────────────────────────────────
 
-    def _get_google_access_token(self) -> tuple[str, str, str | None]:
+    def _get_google_access_token(self) -> tuple[str, str, str, str | None]:
         """
-        Get Google OAuth access_token and workflowId from the active cookie.
+        Get Google OAuth access_token, session_token, and workflowId from the active cookie.
 
         Returns:
-            (access_token, workflow_id, error_message_or_None)
+            (access_token, workflow_id, session_token, error_message_or_None)
         """
         try:
             resp = self.cookie_api.get_api_keys(
@@ -849,27 +549,61 @@ class ImageCreatorPage(QWidget):
                 status="active",
             )
             if not resp.success or not resp.data:
-                return "", "", "No cookies found. Add a cookie first."
+                return "", "", "", "No cookies found. Add a cookie first."
 
             items = resp.data.get("items", [])
             if not items:
-                return "", "", "No active cookies found."
+                return "", "", "", "No active cookies found."
 
             # Use first active cookie — access_token is in the "value" field
             cookie = items[0]
             access_token = cookie.get("value", "")
 
             if not access_token:
-                return "", "", "Cookie has no Google access_token. Try refreshing the cookie."
+                return "", "", "", "Cookie has no Google access_token. Try refreshing the cookie."
+
+            # Extract session_token from cookie metadata
+            metadata = cookie.get("metadata", {})
+            cookies_dict = metadata.get("cookies", {})
+            session_token = cookies_dict.get("__Secure-next-auth.session-token", "")
 
             # workflowId is not stored in cookie data
             workflow_id = ""
 
-            return access_token, workflow_id, None
+            return access_token, workflow_id, session_token, None
 
         except Exception as e:
             logger.error(f"Failed to get Google access_token: {e}")
-            return "", "", f"Error getting access token: {e}"
+            return "", "", "", f"Error getting access token: {e}"
+
+    # ── Workflow Persistence ─────────────────────────────────────────
+
+    def _save_workflow(self, flow_id: int, workflow_id: str, workflow_name: str):
+        """Persist workflow data to QSettings keyed by flow_id."""
+        s = QSettings("Whisk", "Workflows")
+        s.setValue(f"flow_{flow_id}/workflow_id", workflow_id)
+        s.setValue(f"flow_{flow_id}/workflow_name", workflow_name)
+        s.sync()
+        logger.info(f"💾 Workflow saved: flow={flow_id} → {workflow_id}")
+
+    def _load_workflow(self, flow_id: int):
+        """Restore workflow data from QSettings for the given flow_id."""
+        s = QSettings("Whisk", "Workflows")
+        wf_id = s.value(f"flow_{flow_id}/workflow_id", "")
+        wf_name = s.value(f"flow_{flow_id}/workflow_name", "")
+
+        if wf_id:
+            self._workflow_id = wf_id
+            self._workflow_name = wf_name
+            logger.info(f"📂 Workflow restored: flow={flow_id} → {wf_id}")
+            # Update config panel to show linked status
+            if hasattr(self, "_config"):
+                self._config.set_workflow_status(
+                    f"✅ Workflow linked\n{wf_id[:16]}..."
+                )
+        else:
+            self._workflow_id = ""
+            self._workflow_name = ""
 
     # ── Download / Save ───────────────────────────────────────────────
 
@@ -1011,6 +745,8 @@ class ImageCreatorPage(QWidget):
                 self, "Info",
                 self.translator.t("queue.folder_not_found"),
             )
+
+    # ── Retranslation ────────────────────────────────────────────────
 
     def retranslate(self):
         """Refresh data after language change to update status labels."""

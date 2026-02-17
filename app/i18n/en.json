@@ -32,6 +32,12 @@
     "config.ref_title": "Title images folder",
     "config.ref_scene": "Scene images folder",
     "config.ref_style": "Style images folder",
+    "config.ref_mode_single": "Single (shared)",
+    "config.ref_mode_multiple": "Multiple (per-row)",
+    "config.ref_get_id": "📤 Get ID",
+    "config.ref_id_ready": "✅ {count} IDs ready",
+    "config.ref_id_getting": "⏳ Uploading…",
+    "config.ref_id_error": "❌ Upload failed",
     "config.toggle_panel": "Toggle config panel",
 
     "queue.stt": "STT",

@@ -16,20 +16,11 @@ import urllib.parse
 import random
 from app.api.api_config import LABS_BASE_URL, flow_url
 from app.api.models import ApiResponse
+from app.api.workflow_api.constants import (
+    LABS_TRPC_URL, WHISK_API_URL, WHISK_RECIPE_URL, ASPECT_RATIO_MAP,
+)
 
 logger = logging.getLogger("whisk.workflow_api")
-
-LABS_TRPC_URL = f"{LABS_BASE_URL}/api/trpc/media.createOrUpdateWorkflow"
-
-WHISK_API_URL = "https://aisandbox-pa.googleapis.com/v1/whisk:generateImage"
-
-ASPECT_RATIO_MAP = {
-    "16:9":  "IMAGE_ASPECT_RATIO_LANDSCAPE",
-    "9:16":  "IMAGE_ASPECT_RATIO_PORTRAIT",
-    "1:1":   "IMAGE_ASPECT_RATIO_SQUARE",
-    "4:3":   "IMAGE_ASPECT_RATIO_FOUR_THREE",
-    "3:4":   "IMAGE_ASPECT_RATIO_THREE_FOUR",
-}
 
 
 class WorkflowApiClient:
@@ -212,6 +203,213 @@ class WorkflowApiClient:
             logger.error(f"❌ <<< link_workflow exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
+    # ── Reference Image Upload ────────────────────────────────────────
+
+    MEDIA_CATEGORY_MAP = {
+        "title": "MEDIA_CATEGORY_SUBJECT",
+        "scene": "MEDIA_CATEGORY_SCENE",
+        "style": "MEDIA_CATEGORY_STYLE",
+    }
+
+    def caption_image(
+        self,
+        session_token: str,
+        image_base64: str,
+        media_category: str = "MEDIA_CATEGORY_SUBJECT",
+        workflow_id: str = "",
+    ) -> ApiResponse:
+        """
+        POST labs.google/fx/api/trpc/backbone.captionImage
+
+        Sends an image (as base64 data URI) and returns an AI-generated caption.
+        """
+        url = f"{LABS_BASE_URL}/api/trpc/backbone.captionImage"
+        session_id = f";{int(time.time() * 1000)}"
+
+        payload = {
+            "json": {
+                "clientContext": {
+                    "sessionId": session_id,
+                    "workflowId": workflow_id,
+                },
+                "captionInput": {
+                    "candidatesCount": 1,
+                    "mediaInput": {
+                        "mediaCategory": media_category,
+                        "rawBytes": image_base64,
+                    },
+                },
+            }
+        }
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/json",
+            "Origin": "https://labs.google",
+            "Referer": "https://labs.google/",
+            "Cookie": f"__Secure-next-auth.session-token={session_token}",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/144.0.0.0 Safari/537.36",
+        }
+
+        try:
+            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+            logger.info(f"📸 >>> POST captionImage ({media_category})")
+
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                resp_body = json.loads(resp.read().decode("utf-8"))
+
+            result = resp_body.get("result", {}).get("data", {}).get("json", {}).get("result", {})
+            candidates = result.get("candidates", [])
+
+            if candidates:
+                caption = candidates[0].get("output", "")
+                logger.info(f"📸 <<< Caption: {caption[:80]}...")
+                return ApiResponse(success=True, data={"caption": caption})
+
+            return ApiResponse(success=False, data=resp_body, message="No caption candidates")
+
+        except urllib.error.HTTPError as e:
+            error_data = ""
+            try:
+                error_data = e.read().decode("utf-8")
+            except Exception:
+                pass
+            logger.error(f"❌ <<< captionImage {e.code}: {error_data[:200]}")
+            return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:300]}")
+        except Exception as e:
+            logger.error(f"❌ <<< captionImage exception: {e}")
+            return ApiResponse(success=False, message=str(e))
+
+    def upload_image(
+        self,
+        session_token: str,
+        image_base64: str,
+        media_category: str = "MEDIA_CATEGORY_SUBJECT",
+        workflow_id: str = "",
+    ) -> ApiResponse:
+        """
+        POST labs.google/fx/api/trpc/backbone.uploadImage
+
+        Uploads an image (as base64 data URI) and returns uploadMediaGenerationId.
+        """
+        url = f"{LABS_BASE_URL}/api/trpc/backbone.uploadImage"
+        session_id = f";{int(time.time() * 1000)}"
+
+        payload = {
+            "json": {
+                "clientContext": {
+                    "workflowId": workflow_id,
+                    "sessionId": session_id,
+                },
+                "uploadMediaInput": {
+                    "mediaCategory": media_category,
+                    "rawBytes": image_base64,
+                },
+            }
+        }
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "application/json",
+            "Origin": "https://labs.google",
+            "Referer": "https://labs.google/",
+            "Cookie": f"__Secure-next-auth.session-token={session_token}",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/144.0.0.0 Safari/537.36",
+        }
+
+        try:
+            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+            logger.info(f"📤 >>> POST uploadImage ({media_category})")
+
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                resp_body = json.loads(resp.read().decode("utf-8"))
+
+            result = resp_body.get("result", {}).get("data", {}).get("json", {}).get("result", {})
+            upload_id = result.get("uploadMediaGenerationId", "")
+
+            if upload_id:
+                logger.info(f"📤 <<< uploadMediaGenerationId: {upload_id[:40]}...")
+                return ApiResponse(
+                    success=True,
+                    data={"uploadMediaGenerationId": upload_id},
+                )
+
+            return ApiResponse(success=False, data=resp_body, message="No uploadMediaGenerationId")
+
+        except urllib.error.HTTPError as e:
+            error_data = ""
+            try:
+                error_data = e.read().decode("utf-8")
+            except Exception:
+                pass
+            logger.error(f"❌ <<< uploadImage {e.code}: {error_data[:200]}")
+            return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:300]}")
+        except Exception as e:
+            logger.error(f"❌ <<< uploadImage exception: {e}")
+            return ApiResponse(success=False, message=str(e))
+
+    def upload_reference_image(
+        self,
+        session_token: str,
+        image_path: str,
+        category: str,
+        workflow_id: str = "",
+    ) -> ApiResponse:
+        """
+        Convenience: read file → base64 data URI → captionImage + uploadImage.
+
+        Args:
+            image_path: Local file path to the image.
+            category: One of "title", "scene", "style".
+
+        Returns ApiResponse with data = {uploadMediaGenerationId, caption, mediaCategory}.
+        """
+        import base64
+        import os
+
+        media_category = self.MEDIA_CATEGORY_MAP.get(category, "MEDIA_CATEGORY_SUBJECT")
+
+        # Read file and convert to base64 data URI
+        try:
+            ext = os.path.splitext(image_path)[1].lower().lstrip(".")
+            mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                    "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/png")
+            with open(image_path, "rb") as f:
+                raw = f.read()
+            b64 = base64.b64encode(raw).decode("ascii")
+            data_uri = f"data:{mime};base64,{b64}"
+        except Exception as e:
+            logger.error(f"❌ Failed to read image {image_path}: {e}")
+            return ApiResponse(success=False, message=f"Cannot read image: {e}")
+
+        # Step 1: Caption
+        caption = ""
+        caption_resp = self.caption_image(session_token, data_uri, media_category, workflow_id)
+        if caption_resp.success:
+            caption = caption_resp.data.get("caption", "")
+
+        # Step 2: Upload
+        upload_resp = self.upload_image(session_token, data_uri, media_category, workflow_id)
+        if not upload_resp.success:
+            return upload_resp
+
+        upload_id = upload_resp.data.get("uploadMediaGenerationId", "")
+        return ApiResponse(
+            success=True,
+            data={
+                "uploadMediaGenerationId": upload_id,
+                "caption": caption,
+                "mediaCategory": media_category,
+            },
+            message="Reference image uploaded",
+        )
+
     # ── Generate Image via Whisk API ──────────────────────────────────
 
     def generate_image(
@@ -222,6 +420,8 @@ class WorkflowApiClient:
         aspect_ratio: str = "16:9",
         image_model: str = "IMAGEN_3_5",
         seed: int | None = None,
+        media_inputs: list[dict] | None = None,
+        timeout: int = 60,
     ) -> ApiResponse:
         """
         POST aisandbox-pa.googleapis.com/v1/whisk:generateImage
@@ -235,20 +435,50 @@ class WorkflowApiClient:
         api_ratio = ASPECT_RATIO_MAP.get(aspect_ratio, "IMAGE_ASPECT_RATIO_LANDSCAPE")
         session_id = f";{int(time.time() * 1000)}"
 
-        payload = {
-            "clientContext": {
-                "workflowId": workflow_id,
-                "tool": "BACKBONE",
-                "sessionId": session_id,
-            },
-            "imageModelSettings": {
-                "imageModel": image_model,
-                "aspectRatio": api_ratio,
-            },
-            "seed": seed,
-            "prompt": prompt,
-            "mediaCategory": "MEDIA_CATEGORY_BOARD",
-        }
+        # Choose endpoint and payload based on whether ref images are present
+        if media_inputs:
+            # With reference images → runImageRecipe
+            api_url = WHISK_RECIPE_URL
+            payload = {
+                "clientContext": {
+                    "workflowId": workflow_id,
+                    "tool": "BACKBONE",
+                    "sessionId": session_id,
+                },
+                "seed": seed,
+                "imageModelSettings": {
+                    "imageModel": image_model,
+                    "aspectRatio": api_ratio,
+                },
+                "userInstruction": prompt,
+                "recipeMediaInputs": [
+                    {
+                        "caption": mi.get("caption", ""),
+                        "mediaInput": {
+                            "mediaCategory": mi["mediaCategory"],
+                            "mediaGenerationId": mi["uploadMediaGenerationId"],
+                        },
+                    }
+                    for mi in media_inputs
+                ],
+            }
+        else:
+            # Without reference images → generateImage
+            api_url = WHISK_API_URL
+            payload = {
+                "clientContext": {
+                    "workflowId": workflow_id,
+                    "tool": "BACKBONE",
+                    "sessionId": session_id,
+                },
+                "imageModelSettings": {
+                    "imageModel": image_model,
+                    "aspectRatio": api_ratio,
+                },
+                "seed": seed,
+                "prompt": prompt,
+                "mediaCategory": "MEDIA_CATEGORY_BOARD",
+            }
 
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {
@@ -264,16 +494,16 @@ class WorkflowApiClient:
 
         try:
             req = urllib.request.Request(
-                WHISK_API_URL,
+                api_url,
                 data=body,
                 headers=headers,
                 method="POST",
             )
 
-            logger.info(f"📤 >>> POST {WHISK_API_URL} (prompt={prompt[:50]}...)")
+            logger.info(f"📤 >>> POST {api_url} (prompt={prompt[:50]}...)")
             logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
             logger.info(f"📥 <<< {resp.status} OK — image generated")

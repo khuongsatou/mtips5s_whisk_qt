@@ -53,7 +53,7 @@ class TestAspectRatioMap:
 
 
 class TestCreateWorkflow:
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         resp_body = {
             "result": {"data": {"json": {"result": {"workflowId": "wf-123"}}}}
@@ -64,7 +64,7 @@ class TestCreateWorkflow:
         assert result.success is True
         assert result.data["workflowId"] == "wf-123"
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_with_csrf_token(self, mock_urlopen):
         resp_body = {
             "result": {"data": {"json": {"result": {"workflowId": "wf-456"}}}}
@@ -74,7 +74,7 @@ class TestCreateWorkflow:
         result = c.create_workflow("session-tok", csrf_token="csrf-tok")
         assert result.success is True
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_no_workflow_id(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"result": {}})
         c = WorkflowApiClient()
@@ -82,7 +82,7 @@ class TestCreateWorkflow:
         assert result.success is False
         assert "No workflowId" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_http_error(self, mock_urlopen):
         mock_urlopen.side_effect = _make_http_error(403, "Forbidden")
         c = WorkflowApiClient()
@@ -90,7 +90,7 @@ class TestCreateWorkflow:
         assert result.success is False
         assert "403" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_url_error(self, mock_urlopen):
         import urllib.error
         mock_urlopen.side_effect = urllib.error.URLError("refused")
@@ -99,7 +99,7 @@ class TestCreateWorkflow:
         assert result.success is False
         assert "Cannot connect" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_generic_exception(self, mock_urlopen):
         mock_urlopen.side_effect = RuntimeError("boom")
         c = WorkflowApiClient()
@@ -108,28 +108,28 @@ class TestCreateWorkflow:
 
 
 class TestLinkWorkflow:
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"status": "ok"})
         c = WorkflowApiClient(access_token="tok")
         result = c.link_workflow(flow_id=1, project_id="wf-1", project_name="Test")
         assert result.success is True
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_not_ok_status(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"status": "fail"})
         c = WorkflowApiClient(access_token="tok")
         result = c.link_workflow(1, "wf-1", "Test")
         assert result.success is False
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_http_error(self, mock_urlopen):
         mock_urlopen.side_effect = _make_http_error(500, "Server Error")
         c = WorkflowApiClient(access_token="tok")
         result = c.link_workflow(1, "wf-1", "Test")
         assert result.success is False
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_url_error(self, mock_urlopen):
         import urllib.error
         mock_urlopen.side_effect = urllib.error.URLError("timeout")
@@ -137,7 +137,7 @@ class TestLinkWorkflow:
         result = c.link_workflow(1, "wf-1", "Test")
         assert result.success is False
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_generic_exception(self, mock_urlopen):
         mock_urlopen.side_effect = RuntimeError("x")
         c = WorkflowApiClient(access_token="tok")
@@ -146,7 +146,7 @@ class TestLinkWorkflow:
 
 
 class TestGenerateImage:
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         body = {
             "imagePanels": [{
@@ -168,7 +168,7 @@ class TestGenerateImage:
         assert result.data["encoded_image"] == "base64data"
         assert result.data["seed"] == 42
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_no_image_panels(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({"imagePanels": []})
         c = WorkflowApiClient()
@@ -176,7 +176,7 @@ class TestGenerateImage:
         assert result.success is False
         assert "No imagePanels" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_no_generated_images(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({
             "imagePanels": [{"generatedImages": []}]
@@ -186,7 +186,7 @@ class TestGenerateImage:
         assert result.success is False
         assert "No generatedImages" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_custom_aspect_ratio(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({
             "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
@@ -199,7 +199,7 @@ class TestGenerateImage:
         payload = json.loads(req.data.decode("utf-8"))
         assert payload["imageModelSettings"]["aspectRatio"] == "IMAGE_ASPECT_RATIO_PORTRAIT"
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_custom_seed(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({
             "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
@@ -212,7 +212,7 @@ class TestGenerateImage:
         payload = json.loads(req.data.decode("utf-8"))
         assert payload["seed"] == 99999
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_unknown_aspect_ratio_fallback(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response({
             "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
@@ -225,7 +225,7 @@ class TestGenerateImage:
         payload = json.loads(req.data.decode("utf-8"))
         assert payload["imageModelSettings"]["aspectRatio"] == "IMAGE_ASPECT_RATIO_LANDSCAPE"
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_http_error(self, mock_urlopen):
         mock_urlopen.side_effect = _make_http_error(429, "Rate limited")
         c = WorkflowApiClient()
@@ -233,7 +233,7 @@ class TestGenerateImage:
         assert result.success is False
         assert "429" in result.message
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_url_error(self, mock_urlopen):
         import urllib.error
         mock_urlopen.side_effect = urllib.error.URLError("timeout")
@@ -241,7 +241,7 @@ class TestGenerateImage:
         result = c.generate_image("gtoken", "wf-1", "test")
         assert result.success is False
 
-    @patch("app.api.workflow_api.urllib.request.urlopen")
+    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_generic_exception(self, mock_urlopen):
         mock_urlopen.side_effect = RuntimeError("crash")
         c = WorkflowApiClient()

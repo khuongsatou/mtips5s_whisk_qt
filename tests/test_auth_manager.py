@@ -7,7 +7,9 @@ import os
 import pytest
 import tempfile
 from unittest.mock import patch, MagicMock, mock_open
-from app.auth.auth_manager import AuthManager, UserSession, SESSION_FILE
+from app.auth.auth_manager import (
+    AuthManager, UserSession, SESSION_FILE, REFRESH_URL, LOGOUT_URL,
+)
 
 
 class TestUserSession:
@@ -111,6 +113,7 @@ class TestAuthManager:
         assert not self.auth.is_logged_in
 
     def test_try_restore_valid_session(self):
+        """Access token still valid — fetch_user_info succeeds."""
         session_data = {
             "access_token": "tok",
             "username": "admin",
@@ -121,7 +124,9 @@ class TestAuthManager:
             tmp_path = f.name
 
         try:
-            with patch("app.auth.auth_manager.SESSION_FILE", tmp_path):
+            with patch(
+                "app.auth.auth_manager.SESSION_FILE", tmp_path
+            ), patch.object(self.auth, "fetch_user_info", return_value=True):
                 result = self.auth.try_restore_session()
             assert result
             assert self.auth.is_logged_in
@@ -151,6 +156,88 @@ class TestAuthManager:
             with patch("app.auth.auth_manager.SESSION_FILE", tmp_path):
                 result = self.auth.try_restore_session()
             assert not result
+        finally:
+            os.unlink(tmp_path)
+
+    def test_try_restore_refresh_path(self):
+        """Access token expired, refresh_token works → restored."""
+        session_data = {
+            "access_token": "expired_tok",
+            "username": "admin",
+            "refresh_token": "valid_refresh",
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(session_data, f)
+            tmp_path = f.name
+
+        try:
+            with patch("app.auth.auth_manager.SESSION_FILE", tmp_path), \
+                 patch.object(self.auth, "fetch_user_info", return_value=False), \
+                 patch.object(self.auth, "refresh_token", return_value=(True, "new_tok")):
+                result = self.auth.try_restore_session()
+            assert result
+        finally:
+            os.unlink(tmp_path)
+
+    def test_try_restore_key_code_path(self):
+        """Access + refresh expired, but saved key_code re-logins."""
+        session_data = {
+            "access_token": "expired",
+            "username": "admin",
+            "refresh_token": "expired_refresh",
+            "key_code": "my_key",
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(session_data, f)
+            tmp_path = f.name
+
+        try:
+            with patch("app.auth.auth_manager.SESSION_FILE", tmp_path), \
+                 patch.object(self.auth, "fetch_user_info", return_value=False), \
+                 patch.object(self.auth, "refresh_token", return_value=(False, "expired")), \
+                 patch.object(self.auth, "login", return_value=(True, "OK")) as mock_login:
+                result = self.auth.try_restore_session()
+            assert result
+            mock_login.assert_called_once_with("my_key")
+        finally:
+            os.unlink(tmp_path)
+
+    def test_try_restore_all_fail(self):
+        """Access + refresh + key_code all fail → returns False."""
+        session_data = {
+            "access_token": "expired",
+            "username": "admin",
+            "refresh_token": "expired_refresh",
+            "key_code": "bad_key",
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(session_data, f)
+            tmp_path = f.name
+
+        try:
+            with patch("app.auth.auth_manager.SESSION_FILE", tmp_path), \
+                 patch.object(self.auth, "fetch_user_info", return_value=False), \
+                 patch.object(self.auth, "refresh_token", return_value=(False, "expired")), \
+                 patch.object(self.auth, "login", return_value=(False, "Invalid key")):
+                result = self.auth.try_restore_session()
+            assert not result
+            assert self.auth.session is None
+        finally:
+            os.unlink(tmp_path)
+
+    def test_try_restore_key_code_only(self):
+        """Session has only key_code (no access_token) → re-login."""
+        session_data = {"key_code": "my_key", "username": ""}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(session_data, f)
+            tmp_path = f.name
+
+        try:
+            with patch("app.auth.auth_manager.SESSION_FILE", tmp_path), \
+                 patch.object(self.auth, "login", return_value=(True, "OK")) as mock_login:
+                result = self.auth.try_restore_session()
+            assert result
+            mock_login.assert_called_once_with("my_key")
         finally:
             os.unlink(tmp_path)
 
@@ -404,3 +491,149 @@ class TestAuthManagerSaveSession:
         auth._session = None
         # Should not raise
         auth._save_session()
+
+
+class TestAuthManagerRefreshToken:
+    """Test AuthManager.refresh_token() with mocked HTTP calls."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.auth = AuthManager()
+        self.auth._session = UserSession(
+            access_token="old_access", refresh_token="valid_refresh",
+            username="admin", user_id=42,
+        )
+
+    def test_refresh_no_session(self):
+        self.auth._session = None
+        success, msg = self.auth.refresh_token()
+        assert success is False
+        assert "No refresh token" in msg
+
+    def test_refresh_no_refresh_token(self):
+        self.auth._session = UserSession(access_token="tok", username="u")
+        success, msg = self.auth.refresh_token()
+        assert success is False
+        assert "No refresh token" in msg
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_refresh_success(self, mock_urlopen):
+        body = {"access_token": "new_access_token_xyz"}
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(body).encode("utf-8")
+        mock_resp.status = 200
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        signals = []
+        self.auth.on_token_refreshed.connect(lambda t: signals.append(t))
+
+        with patch.object(self.auth, "_save_session"):
+            success, new_token = self.auth.refresh_token()
+
+        assert success is True
+        assert new_token == "new_access_token_xyz"
+        assert self.auth.session.access_token == "new_access_token_xyz"
+        assert len(signals) == 1
+        assert signals[0] == "new_access_token_xyz"
+
+        # Verify request used refresh_token in Bearer header
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert req.get_header("Authorization") == "Bearer valid_refresh"
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_refresh_http_error(self, mock_urlopen):
+        import urllib.error
+        error_body = json.dumps({"message": "Token expired"}).encode("utf-8")
+        mock_error = urllib.error.HTTPError(
+            url="http://test", code=401, msg="Unauthorized",
+            hdrs=None, fp=MagicMock(read=MagicMock(return_value=error_body)),
+        )
+        mock_error.read = MagicMock(return_value=error_body)
+        mock_urlopen.side_effect = mock_error
+
+        success, msg = self.auth.refresh_token()
+        assert success is False
+        assert "Token expired" in msg
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_refresh_url_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
+
+        success, msg = self.auth.refresh_token()
+        assert success is False
+        assert "Cannot connect" in msg
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_refresh_empty_token_response(self, mock_urlopen):
+        body = {"access_token": ""}
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(body).encode("utf-8")
+        mock_resp.status = 200
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        success, msg = self.auth.refresh_token()
+        assert success is False
+        assert "empty" in msg.lower()
+
+
+class TestAuthManagerServerLogout:
+    """Test AuthManager.logout() with server-side API call."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.auth = AuthManager()
+        self.auth._session = UserSession(
+            access_token="tok_for_logout", username="admin",
+        )
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_logout_calls_server(self, mock_urlopen):
+        body = {"message": "Đăng xuất thành công."}
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(body).encode("utf-8")
+        mock_resp.status = 200
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        self.auth.logout()
+
+        # Verify server was called with access token
+        mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        assert req.get_header("Authorization") == "Bearer tok_for_logout"
+        assert req.full_url == LOGOUT_URL
+
+        # Session should be cleared
+        assert self.auth.session is None
+        assert not self.auth.is_logged_in
+
+    @patch("app.auth.auth_manager.urllib.request.urlopen")
+    def test_logout_server_failure_still_clears_session(self, mock_urlopen):
+        """Logout should still clear local session even if server call fails."""
+        mock_urlopen.side_effect = RuntimeError("network error")
+
+        signals = []
+        self.auth.logged_out.connect(lambda: signals.append(True))
+
+        self.auth.logout()
+
+        assert self.auth.session is None
+        assert not self.auth.is_logged_in
+        assert len(signals) == 1
+
+    def test_logout_no_session_skips_server_call(self):
+        """If no session, server call should be skipped gracefully."""
+        self.auth._session = None
+
+        with patch("app.auth.auth_manager.urllib.request.urlopen") as mock_urlopen:
+            self.auth.logout()
+
+        mock_urlopen.assert_not_called()
+
