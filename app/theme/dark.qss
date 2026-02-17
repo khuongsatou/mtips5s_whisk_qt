@@ -22,20 +22,29 @@ QWidget#sidebar {
 }
 QLabel#sidebar_title {
     color: {{text-primary}};
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 800;
     padding: 0;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+}
+QWidget#sidebar_logo_container {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 rgba(255, 255, 255, 0.12),
+        stop:1 rgba(255, 255, 255, 0.04));
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 QLabel#sidebar_logo {
-    background-color: rgba(255, 255, 255, 0.15);
-    border-radius: 16px;
+    background-color: transparent;
+    border-radius: 10px;
     padding: 0px;
 }
 QLabel#sidebar_subtitle {
-    color: #8B7FB8;
+    color: #9A8EC0;
     font-size: 11px;
-    padding: 0 20px 20px 20px;
+    font-weight: 500;
+    padding: 0;
+    letter-spacing: 0.5px;
 }
 QPushButton#nav_button {
     background-color: transparent;

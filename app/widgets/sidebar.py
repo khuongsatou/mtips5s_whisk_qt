@@ -39,9 +39,17 @@ class Sidebar(QWidget):
 
         # Logo + Title row
         logo_row = QHBoxLayout()
-        logo_row.setContentsMargins(12, 12, 12, 0)
-        logo_row.setSpacing(8)
+        logo_row.setContentsMargins(12, 16, 12, 8)
+        logo_row.setSpacing(10)
         logo_row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Logo with glow container
+        logo_container = QWidget()
+        logo_container.setObjectName("sidebar_logo_container")
+        logo_container.setFixedSize(44, 44)
+        logo_inner = QHBoxLayout(logo_container)
+        logo_inner.setContentsMargins(2, 2, 2, 2)
+        logo_inner.setAlignment(Qt.AlignCenter)
 
         self._logo = QLabel()
         self._logo.setObjectName("sidebar_logo")
@@ -49,14 +57,15 @@ class Sidebar(QWidget):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             self._logo.setPixmap(
-                pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap.scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
-        self._logo.setFixedSize(32, 32)
-        logo_row.addWidget(self._logo)
+        self._logo.setFixedSize(36, 36)
+        logo_inner.addWidget(self._logo)
+        logo_row.addWidget(logo_container)
 
         title_col = QVBoxLayout()
         title_col.setContentsMargins(0, 0, 0, 0)
-        title_col.setSpacing(0)
+        title_col.setSpacing(1)
 
         self._title = QLabel("Whisk")
         self._title.setObjectName("sidebar_title")
