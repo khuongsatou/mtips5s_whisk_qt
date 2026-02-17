@@ -80,7 +80,7 @@ class QueueToolbar(QWidget):
         self._search_input.setObjectName("toolbar_search")
         self._search_input.setPlaceholderText(f"🔍 {self.translator.t('toolbar.search_prompt')}")
         self._search_input.setClearButtonEnabled(True)
-        self._search_input.setFixedWidth(180)
+        self._search_input.setFixedWidth(220)
         self._search_input.textChanged.connect(self.search_changed.emit)
         layout.addWidget(self._search_input)
 

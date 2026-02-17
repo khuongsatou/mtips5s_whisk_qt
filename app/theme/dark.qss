@@ -1226,6 +1226,56 @@ QPushButton#toolbar_run_button:pressed {
     background-color: #0F766E;
 }
 
+/* ─────────────── Search Input ─────────────── */
+QLineEdit#toolbar_search {
+    background-color: {{bg-secondary}};
+    border: 1px solid {{border}};
+    border-radius: 14px;
+    padding: 6px 12px 6px 8px;
+    font-size: 12px;
+    color: {{text-primary}};
+    selection-background-color: {{color-primary-dark}};
+}
+QLineEdit#toolbar_search:focus {
+    border: 2px solid {{color-primary}};
+    padding: 5px 11px 5px 7px;
+    background-color: {{bg-primary}};
+}
+QLineEdit#toolbar_search:hover {
+    border-color: {{color-primary-light}};
+}
+
+/* ─────────────── Status Filter Combo ─────────────── */
+QComboBox#toolbar_combo {
+    background-color: {{bg-secondary}};
+    border: 1px solid {{border}};
+    border-radius: 14px;
+    padding: 6px 28px 6px 10px;
+    font-size: 12px;
+    color: {{text-primary}};
+}
+QComboBox#toolbar_combo:hover {
+    border-color: {{color-primary-light}};
+}
+QComboBox#toolbar_combo:focus {
+    border: 2px solid {{color-primary}};
+    padding: 5px 27px 5px 9px;
+}
+QComboBox#toolbar_combo::drop-down {
+    border: none;
+    width: 20px;
+    subcontrol-position: right center;
+}
+QComboBox#toolbar_combo QAbstractItemView {
+    background-color: {{bg-secondary}};
+    border: 1px solid {{border}};
+    border-radius: 8px;
+    padding: 4px;
+    selection-background-color: {{bg-hover}};
+    selection-color: {{text-primary}};
+    outline: none;
+}
+
 /* ─────────────── Settings Page ─────────────── */
 QLabel#settings_page_title {
     font-size: 22px;
