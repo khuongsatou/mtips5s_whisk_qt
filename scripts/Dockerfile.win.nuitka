@@ -10,7 +10,7 @@ ENV WINEPY="wine /opt/wineprefix/drive_c/Python/python.exe"
 
 WORKDIR /src
 
-# Install MinGW-w64 (C compiler for Nuitka) on the Linux host
+# Install MinGW-w64
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-mingw-w64-x86-64 \
     patchelf \
@@ -20,26 +20,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy project
 COPY . .
 
-# Install Nuitka + deps in Wine Python, then build
-RUN $WINEPY -m pip install --no-cache-dir \
-        PySide6 \
-        nuitka \
-        ordered-set \
-    && $WINEPY -m nuitka \
-        --standalone \
-        --onefile \
-        --mingw64 \
-        --enable-plugin=pyside6 \
-        --include-data-dir=app/i18n=app/i18n \
-        --include-data-dir=app/theme=app/theme \
-        --include-data-dir=app/assets=app/assets \
-        --include-package=app \
-        --windows-console-mode=disable \
-        --output-filename=WhiskDesktop.exe \
-        --output-dir=dist \
-        --remove-output \
-        --assume-yes-for-downloads \
-        --no-pyi-file \
-        main.py
+# Install deps and compile with Nuitka (pyside6 plugin disabled — Qt DLLs can't load in Wine)
+# Instead, we manually include PySide6/shiboken6 as data and use --nofollow-import-to
+RUN bash -c '\
+    set -e && \
+    $WINEPY -m pip install --no-cache-dir PySide6 nuitka ordered-set && \
+    \
+    SITE=$($WINEPY -c "import site; print(site.getsitepackages()[0])" 2>/dev/null | tr -d "\r") && \
+    echo "Site-packages: $SITE" && \
+    \
+    $WINEPY -m nuitka \
+    --standalone \
+    --mingw64 \
+    --disable-plugin=pyside6 \
+    --nofollow-import-to=PySide6 \
+    --nofollow-import-to=shiboken6 \
+    --nofollow-import-to=PySide6.QtCore \
+    --nofollow-import-to=PySide6.QtGui \
+    --nofollow-import-to=PySide6.QtWidgets \
+    --nofollow-import-to=PySide6.QtSvg \
+    --nofollow-import-to=PySide6.QtSvgWidgets \
+    --nofollow-import-to=PySide6.QtNetwork \
+    --include-data-dir=app/i18n=app/i18n \
+    --include-data-dir=app/theme=app/theme \
+    --include-data-dir=app/assets=app/assets \
+    --include-package=app \
+    --windows-console-mode=disable \
+    --output-filename=WhiskDesktop.exe \
+    --output-dir=dist \
+    --assume-yes-for-downloads \
+    main.py && \
+    \
+    echo "Copying PySide6 + shiboken6 into dist..." && \
+    DIST_DIR=$(ls -d dist/main.dist 2>/dev/null || echo "dist/WhiskDesktop.dist") && \
+    cp -r "$SITE/PySide6" "$DIST_DIR/" && \
+    cp -r "$SITE/shiboken6" "$DIST_DIR/" && \
+    echo "Done copying Qt libraries" \
+    '
 
 CMD ["echo", "Build complete"]
