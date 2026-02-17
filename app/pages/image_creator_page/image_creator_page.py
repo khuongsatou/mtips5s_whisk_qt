@@ -13,6 +13,7 @@ import time
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
+    QLineEdit, QComboBox,
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from app.widgets.config_panel import ConfigPanel
@@ -98,6 +99,9 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
+        self._search_bar = self._build_search_bar()
+        right_layout.addWidget(self._search_bar)
+
         self._table = TaskQueueTable(self.translator)
         right_layout.addWidget(self._table, 1)
 
@@ -120,6 +124,74 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._splitter.setStretchFactor(1, 1)   # Table: stretch to fill
 
         outer.addWidget(self._splitter)
+
+    def _build_search_bar(self) -> QWidget:
+        """Build the search + status filter row above the queue table."""
+        bar = QWidget()
+        bar.setObjectName("queue_search_bar")
+        bar.setStyleSheet("""
+            #queue_search_bar {
+                background: transparent;
+                padding: 4px 8px;
+            }
+        """)
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(8, 6, 8, 4)
+        row.setSpacing(8)
+
+        # Search input
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("toolbar_search")
+        self._search_input.setPlaceholderText(
+            f"🔍 {self.translator.t('toolbar.search_prompt')}"
+        )
+        self._search_input.setClearButtonEnabled(True)
+        row.addWidget(self._search_input, 1)
+
+        # Status filter
+        self._status_filter = QComboBox()
+        self._status_filter.setObjectName("toolbar_combo")
+        self._status_filter.setFixedWidth(130)
+        self._populate_status_filter()
+        row.addWidget(self._status_filter)
+
+        # Listen for language changes
+        self.translator.language_changed.connect(self._retranslate_search_bar)
+
+        return bar
+
+    def _populate_status_filter(self):
+        """Populate status filter combo with translated labels."""
+        current_data = self._status_filter.currentData()
+        self._status_filter.blockSignals(True)
+        self._status_filter.clear()
+        self._status_filter.addItem(
+            f"📋 {self.translator.t('toolbar.filter_all')}", ""
+        )
+        self._status_filter.addItem(
+            f"⏳ {self.translator.t('status.pending')}", "pending"
+        )
+        self._status_filter.addItem(
+            f"🔄 {self.translator.t('status.running')}", "running"
+        )
+        self._status_filter.addItem(
+            f"✅ {self.translator.t('status.completed')}", "completed"
+        )
+        self._status_filter.addItem(
+            f"❌ {self.translator.t('status.error')}", "error"
+        )
+        if current_data:
+            idx = self._status_filter.findData(current_data)
+            if idx >= 0:
+                self._status_filter.setCurrentIndex(idx)
+        self._status_filter.blockSignals(False)
+
+    def _retranslate_search_bar(self):
+        """Update search bar text when language changes."""
+        self._search_input.setPlaceholderText(
+            f"🔍 {self.translator.t('toolbar.search_prompt')}"
+        )
+        self._populate_status_filter()
 
     def _connect_signals(self):
         """Wire config panel, table, and toolbar signals."""
@@ -150,9 +222,13 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._table.page_changed.connect(self._toolbar.update_page_info)
         self._table.stats_changed.connect(self._toolbar.update_stats)
 
-        # Search
-        self._toolbar.search_changed.connect(self._table.set_search_filter)
-        self._toolbar.status_filter_changed.connect(self._table.set_status_filter)
+        # Search & filter
+        self._search_input.textChanged.connect(self._table.set_search_filter)
+        self._status_filter.currentIndexChanged.connect(
+            lambda: self._table.set_status_filter(
+                self._status_filter.currentData() or ""
+            )
+        )
 
         # Table download + open folder
         self._table.download_clicked.connect(self._on_download)
