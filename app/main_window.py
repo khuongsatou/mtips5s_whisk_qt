@@ -161,8 +161,11 @@ class MainWindow(QMainWindow):
         all_tasks = []
         for tab_data in self._project_tabs:
             page = tab_data["page"]
+            project_name = tab_data["flow_name"]
             resp = page.api.get_queue()
             if resp.success and resp.data:
+                for t in resp.data:
+                    t["_project_name"] = project_name
                 all_tasks.extend(resp.data)
         self._dashboard.update_stats(all_tasks)
 

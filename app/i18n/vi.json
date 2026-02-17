@@ -206,5 +206,6 @@
     "dashboard.recent_completed": "Hoàn Thành Gần Đây",
     "dashboard.error_summary": "Tóm Tắt Lỗi",
     "dashboard.no_tasks": "Chưa có task nào",
+    "dashboard.per_project": "Theo Dự Án",
     "dashboard.no_errors": "Không có lỗi — mọi task đang chạy tốt!"
 }

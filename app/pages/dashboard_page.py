@@ -105,6 +105,25 @@ class DashboardPage(QWidget):
 
         self._layout.addWidget(rate_section)
 
+        # ── Per-Project Stats ────────────────────────────────────────
+        project_section = QFrame()
+        project_section.setObjectName("dashboard_section")
+        project_layout = QVBoxLayout(project_section)
+        project_layout.setContentsMargins(16, 16, 16, 16)
+        project_layout.setSpacing(8)
+
+        self._project_title = QLabel(
+            f"📁 {self.translator.t('dashboard.per_project')}"
+        )
+        self._project_title.setObjectName("section_title")
+        project_layout.addWidget(self._project_title)
+
+        self._project_container = QVBoxLayout()
+        self._project_container.setSpacing(6)
+        project_layout.addLayout(self._project_container)
+
+        self._layout.addWidget(project_section)
+
         # ── Recent Completed ─────────────────────────────────────────
         recent_section = QFrame()
         recent_section.setObjectName("dashboard_section")
@@ -229,6 +248,9 @@ class DashboardPage(QWidget):
         )[:5]
         self._populate_recent(completed_tasks)
 
+        # Per-project breakdown
+        self._populate_projects(tasks)
+
         # Error summary (up to 3)
         error_tasks = [t for t in tasks if t.get("status") == "error"][:3]
         self._populate_errors(error_tasks)
@@ -316,6 +338,54 @@ class DashboardPage(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
+    def _populate_projects(self, tasks: list):
+        """Populate per-project stats breakdown."""
+        self._clear_layout(self._project_container)
+
+        # Group tasks by project name
+        projects: dict[str, dict] = {}
+        for t in tasks:
+            name = t.get("_project_name", "Unknown")
+            if name not in projects:
+                projects[name] = {"total": 0, "completed": 0, "pending": 0, "errors": 0}
+            projects[name]["total"] += 1
+            status = t.get("status", "")
+            if status == "completed":
+                projects[name]["completed"] += 1
+            elif status == "error":
+                projects[name]["errors"] += 1
+            else:
+                projects[name]["pending"] += 1
+
+        if not projects:
+            label = QLabel(self.translator.t("dashboard.no_tasks"))
+            label.setObjectName("empty_state")
+            label.setAlignment(Qt.AlignCenter)
+            self._project_container.addWidget(label)
+            return
+
+        for name, counts in projects.items():
+            row = QFrame()
+            row.setObjectName("recent_item")
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(12, 8, 12, 8)
+            row_layout.setSpacing(12)
+
+            name_lbl = QLabel(f"📁 {name}")
+            name_lbl.setObjectName("recent_prompt")
+            row_layout.addWidget(name_lbl, 1)
+
+            stats_text = (
+                f"✅ {counts['completed']}  ⏳ {counts['pending']}  "
+                f"❌ {counts['errors']}  │  📊 {counts['total']}"
+            )
+            stats_lbl = QLabel(stats_text)
+            stats_lbl.setObjectName("recent_time")
+            stats_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row_layout.addWidget(stats_lbl)
+
+            self._project_container.addWidget(row)
+
     # ── Retranslation ─────────────────────────────────────────────────
 
     def retranslate(self):
@@ -342,4 +412,7 @@ class DashboardPage(QWidget):
         )
         self._error_title.setText(
             f"⚠️ {self.translator.t('dashboard.error_summary')}"
+        )
+        self._project_title.setText(
+            f"📁 {self.translator.t('dashboard.per_project')}"
         )

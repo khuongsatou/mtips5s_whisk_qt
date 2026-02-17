@@ -58,6 +58,9 @@ class TestDashboardInit:
     def test_has_error_title(self):
         assert self.page._error_title is not None
 
+    def test_has_project_title(self):
+        assert self.page._project_title is not None
+
     def test_object_name(self):
         assert self.page.objectName() == "dashboard_page"
 
@@ -187,3 +190,28 @@ class TestDashboardRetranslate:
         assert self.page._rate_title.text()
         assert self.page._recent_title.text()
         assert self.page._error_title.text()
+        assert self.page._project_title.text()
+
+
+class TestDashboardProjects:
+    """Test per-project breakdown."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, qtbot, translator):
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
+        qtbot.addWidget(self.page)
+
+    def test_project_breakdown(self):
+        tasks = [
+            {"id": "1", "status": "completed", "_project_name": "Project A"},
+            {"id": "2", "status": "completed", "_project_name": "Project A"},
+            {"id": "3", "status": "error", "_project_name": "Project B"},
+        ]
+        self.page.update_stats(tasks)
+        # Two projects → two rows
+        assert self.page._project_container.count() == 2
+
+    def test_no_projects_shows_empty(self):
+        self.page.update_stats([])
+        assert self.page._project_container.count() == 1  # empty state label

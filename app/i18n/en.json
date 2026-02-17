@@ -206,5 +206,6 @@
     "dashboard.recent_completed": "Recent Completed",
     "dashboard.error_summary": "Error Summary",
     "dashboard.no_tasks": "No tasks yet",
+    "dashboard.per_project": "Per Project",
     "dashboard.no_errors": "No errors — all tasks running smoothly!"
 }
