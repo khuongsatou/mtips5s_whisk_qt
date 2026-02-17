@@ -352,9 +352,13 @@ class MainWindow(QMainWindow):
 
     def _on_theme_toggle(self):
         self.theme_manager.toggle_theme()
+        from app.preferences import save_preference
+        save_preference("theme", self.theme_manager.current_theme)
 
     def _on_theme_set(self, theme: str):
         self.theme_manager.set_theme(theme)
+        from app.preferences import save_preference
+        save_preference("theme", theme)
 
     def _on_theme_applied(self, theme: str):
         self._apply_theme()
@@ -364,6 +368,8 @@ class MainWindow(QMainWindow):
 
     def _on_language_change(self, lang_code: str):
         self.translator.set_language(lang_code)
+        from app.preferences import save_preference
+        save_preference("language", lang_code)
 
     def _on_language_applied(self, lang_code: str):
         self.setWindowTitle(self.translator.t("app.title"))

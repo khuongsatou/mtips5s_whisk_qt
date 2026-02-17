@@ -34,9 +34,13 @@ def main():
     logger.info("🚀 Starting Whisk Desktop...")
     app = create_app(sys.argv)
 
+    # Load saved preferences (default: dark + vi)
+    from app.preferences import load_preferences
+    prefs = load_preferences()
+
     # Initialize core services
     theme_manager = ThemeManager()
-    translator = Translator(default_language="en")
+    translator = Translator(default_language=prefs.get("language", "vi"))
     api = MockApi()
     auth_manager = AuthManager()
     flow_api = FlowApiClient()
@@ -49,7 +53,10 @@ def main():
     if os.path.exists(logo_path):
         app.setWindowIcon(QIcon(logo_path))
 
-    # Apply theme stylesheet (needed for login dialog styling)
+    # Apply saved theme (default: dark)
+    saved_theme = prefs.get("theme", "dark")
+    if saved_theme in ("light", "dark"):
+        theme_manager.set_theme(saved_theme)
     app.setStyleSheet(theme_manager.get_stylesheet())
     logger.info(f"🎨 Theme applied: {theme_manager.current_theme}")
 
