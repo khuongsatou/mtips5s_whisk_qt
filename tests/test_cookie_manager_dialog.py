@@ -136,7 +136,7 @@ class TestCookieManagerDialogLoad:
 
     def test_action_widgets_present(self):
         for row in range(3):
-            widget = self.dialog._table.cellWidget(row, 4)
+            widget = self.dialog._table.cellWidget(row, 5)
             assert widget is not None
 
 

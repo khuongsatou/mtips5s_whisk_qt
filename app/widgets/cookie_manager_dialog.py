@@ -5,13 +5,14 @@ Modal dialog for managing browser cookies used for API authentication.
 Flow: Paste session-token → Test → Save (if valid) → List / Delete.
 """
 import logging
+import threading
 from datetime import datetime
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QAbstractItemView, QTextEdit, QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QCursor
 
 logger = logging.getLogger("whisk.cookie_dialog")
@@ -90,12 +91,13 @@ class CookieManagerDialog(QDialog):
         # --- Cookie table ---
         self._table = QTableWidget()
         self._table.setObjectName("cookie_table")
-        self._table.setColumnCount(5)
+        self._table.setColumnCount(6)
         self._table.setHorizontalHeaderLabels([
             self.translator.t("cookie.name"),
             self.translator.t("cookie.status"),
             self.translator.t("cookie.expires"),
             "Provider",
+            "Credits",
             self.translator.t("cookie.actions"),
         ])
         self._table.setAlternatingRowColors(True)
@@ -115,7 +117,9 @@ class CookieManagerDialog(QDialog):
         header.setSectionResizeMode(3, QHeaderView.Fixed)
         self._table.setColumnWidth(3, 90)
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self._table.setColumnWidth(4, 160)
+        self._table.setColumnWidth(4, 100)
+        header.setSectionResizeMode(5, QHeaderView.Fixed)
+        self._table.setColumnWidth(5, 130)
 
         layout.addWidget(self._table, 1)
 
@@ -242,7 +246,12 @@ class CookieManagerDialog(QDialog):
             provider_item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(row, 3, provider_item)
 
-            # Actions: refresh + delete
+            # Credits (initially "—", populated on check)
+            credit_item = QTableWidgetItem("—")
+            credit_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 4, credit_item)
+
+            # Actions: refresh + credit + delete
             cookie_id = cookie.get("id", "")
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
@@ -266,7 +275,7 @@ class CookieManagerDialog(QDialog):
             credit_btn.setCursor(QCursor(Qt.PointingHandCursor))
             credit_btn.setToolTip("Check Google Labs credits")
             credit_btn.clicked.connect(
-                lambda checked, cid=cookie_id, btn=credit_btn: self._on_check_credit(cid, btn)
+                lambda checked, cid=cookie_id, r=row, btn=credit_btn: self._on_check_credit(cid, r, btn)
             )
             action_layout.addWidget(credit_btn)
 
@@ -280,7 +289,7 @@ class CookieManagerDialog(QDialog):
             )
             action_layout.addWidget(del_btn)
 
-            self._table.setCellWidget(row, 4, action_widget)
+            self._table.setCellWidget(row, 5, action_widget)
 
         # Update count
         self._count_label.setText(
@@ -417,57 +426,63 @@ class CookieManagerDialog(QDialog):
 
     # ── Check credit ──────────────────────────────────────────────
 
-    def _on_check_credit(self, cookie_id: str, btn: QPushButton):
-        """Fetch Google Labs credits for a specific cookie."""
+    def _on_check_credit(self, cookie_id: str, row: int, btn: QPushButton):
+        """Fetch Google Labs credits for a specific cookie (async)."""
         if not self.cookie_api or not self.workflow_api:
             self._show_status("⚠️ Workflow API not available", error=True)
             return
 
         btn.setEnabled(False)
         btn.setText("⏳")
-        self._show_status("🔄 Checking credits...", error=False)
 
-        try:
-            # Get the access token from this cookie
-            resp = self.cookie_api.get_api_keys(
-                flow_id=self._active_flow_id,
-                provider=PROVIDER,
-                status="active",
-            )
-            if not resp.success or not resp.data:
-                self._show_status("❌ No active cookies found", error=True)
-                return
+        # Show loading in Credits cell
+        loading_item = QTableWidgetItem("⏳ ...")
+        loading_item.setTextAlignment(Qt.AlignCenter)
+        self._table.setItem(row, 4, loading_item)
 
-            # Find the matching cookie by id
-            token = ""
-            for item in resp.data.get("items", []):
-                if str(item.get("id", "")) == cookie_id:
-                    token = item.get("value", "")
-                    break
-
-            if not token:
-                self._show_status("❌ Cookie token not found", error=True)
-                return
-
-            credit_resp = self.workflow_api.get_credit_status(token)
-            if credit_resp.success and credit_resp.data:
-                credits = credit_resp.data.get("credits", 0)
-                tier = credit_resp.data.get("userPaygateTier", "")
-                self._show_status(
-                    f"💎 Credits: {credits:,}  │  Tier: {tier}",
-                    error=False,
+        def _worker():
+            try:
+                # Get the access token from this cookie
+                resp = self.cookie_api.get_api_keys(
+                    flow_id=self._active_flow_id,
+                    provider=PROVIDER,
+                    status="active",
                 )
-            else:
-                self._show_status(
-                    f"❌ Credit check failed: {credit_resp.message}",
-                    error=True,
-                )
-        except Exception as e:
-            self._show_status(f"❌ Error: {e}", error=True)
-            logger.error(f"check_credit exception: {e}")
-        finally:
-            btn.setEnabled(True)
-            btn.setText("💎")
+                if not resp.success or not resp.data:
+                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                    return
+
+                # Find the matching cookie by id
+                token = ""
+                for item in resp.data.get("items", []):
+                    if str(item.get("id", "")) == cookie_id:
+                        token = item.get("value", "")
+                        break
+
+                if not token:
+                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                    return
+
+                credit_resp = self.workflow_api.get_credit_status(token)
+                if credit_resp.success and credit_resp.data:
+                    credits = credit_resp.data.get("credits", 0)
+                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, f"💎 {credits:,}", btn))
+                else:
+                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+            except Exception as e:
+                logger.error(f"check_credit exception: {e}")
+                QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _set_credit_cell(self, row: int, text: str, btn: QPushButton):
+        """Update the Credits cell and re-enable the button (main thread)."""
+        if row < self._table.rowCount():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 4, item)
+        btn.setEnabled(True)
+        btn.setText("💎")
 
     # ── Helpers ───────────────────────────────────────────────────────
 
