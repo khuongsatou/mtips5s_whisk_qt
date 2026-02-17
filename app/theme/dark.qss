@@ -591,29 +591,27 @@ QPushButton#theme_toggle:hover {
 QPushButton#theme_toggle:pressed {
     background-color: {{border}};
 }
-QComboBox#language_combo {
+/* Language toggle pill container */
+QWidget#lang_switcher {
     background-color: {{bg-secondary}};
     border: 1px solid {{border}};
-    border-radius: 6px;
-    padding: 4px 4px;
-    min-width: 40px;
-    font-size: 12px;
-    color: {{text-primary}};
+    border-radius: 14px;
+    padding: 0px;
 }
-QComboBox#language_combo:hover {
-    border-color: {{color-primary}};
-}
-QComboBox#language_combo::drop-down {
+QPushButton#lang_btn {
+    background-color: transparent;
     border: none;
-    width: 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    padding: 2px 4px;
+    min-width: 28px;
 }
-QComboBox QAbstractItemView {
-    background-color: {{bg-secondary}};
-    border: 1px solid {{border}};
-    border-radius: 4px;
-    padding: 4px;
-    selection-background-color: {{bg-hover}};
-    color: {{text-primary}};
+QPushButton#lang_btn:hover {
+    background-color: {{bg-hover}};
+}
+QPushButton#lang_btn:checked {
+    background-color: {{color-primary}};
+    border: 1px solid {{color-primary}};
 }
 
 /* ─────────────── Collapsible Section ─────────────── */

@@ -5,7 +5,7 @@ Responsive header bar with page title, user info, navigation buttons,
 theme toggle, and language switcher. Wraps content to prevent overflow.
 """
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QLabel, QPushButton, QComboBox,
+    QWidget, QHBoxLayout, QLabel, QPushButton,
     QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt
@@ -93,18 +93,27 @@ class Header(QWidget):
         self._theme_btn.clicked.connect(self._on_theme_toggle)
         layout.addWidget(self._theme_btn)
 
-        # Language combo
-        self._lang_combo = QComboBox()
-        self._lang_combo.setObjectName("language_combo")
-        self._lang_combo.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        # Language toggle buttons
+        self._lang_flags = {}
+        lang_container = QWidget()
+        lang_container.setObjectName("lang_switcher")
+        lang_layout = QHBoxLayout(lang_container)
+        lang_layout.setContentsMargins(2, 2, 2, 2)
+        lang_layout.setSpacing(0)
+
         for lang_code in self.translator.available_languages:
             flag = {"en": "🇺🇸", "vi": "🇻🇳"}.get(lang_code, lang_code)
-            self._lang_combo.addItem(flag, lang_code)
-        # Set current index
-        idx = self.translator.available_languages.index(self.translator.current_language)
-        self._lang_combo.setCurrentIndex(idx)
-        self._lang_combo.currentIndexChanged.connect(self._on_language_change)
-        layout.addWidget(self._lang_combo)
+            btn = QPushButton(flag)
+            btn.setObjectName("lang_btn")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setFixedSize(32, 28)
+            btn.setCheckable(True)
+            btn.setChecked(lang_code == self.translator.current_language)
+            btn.clicked.connect(lambda checked, lc=lang_code: self._on_language_btn(lc))
+            lang_layout.addWidget(btn)
+            self._lang_flags[lang_code] = btn
+
+        layout.addWidget(lang_container)
 
     def _theme_label(self) -> str:
         """Get the theme toggle button label."""
@@ -117,11 +126,13 @@ class Header(QWidget):
         self.theme_toggled.emit()
         self._theme_btn.setText(self._theme_label())
 
-    def _on_language_change(self, index: int):
-        """Handle language dropdown change."""
-        lang_code = self._lang_combo.itemData(index)
-        if lang_code and lang_code != self.translator.current_language:
+    def _on_language_btn(self, lang_code: str):
+        """Handle language button click."""
+        if lang_code != self.translator.current_language:
             self.language_changed.emit(lang_code)
+        # Update checked state
+        for lc, btn in self._lang_flags.items():
+            btn.setChecked(lc == lang_code)
 
     def set_page_title(self, title: str):
         """Update the page title in the header."""
@@ -137,6 +148,9 @@ class Header(QWidget):
         self._cookies_btn.setToolTip(self.translator.t('cookie.header_btn'))
         self._projects_btn.setToolTip(self.translator.t('project.header_btn'))
         self._tokens_btn.setToolTip(self.translator.t('token.header_btn'))
+        # Sync language button states
+        for lc, btn in self._lang_flags.items():
+            btn.setChecked(lc == self.translator.current_language)
 
     def set_active_project_name(self, name: str):
         """Update the active project label in the header."""

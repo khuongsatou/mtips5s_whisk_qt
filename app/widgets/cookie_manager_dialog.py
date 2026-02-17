@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QAbstractItemView, QTextEdit, QSizePolicy,
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
 
 logger = logging.getLogger("whisk.cookie_dialog")
@@ -24,6 +24,7 @@ class CookieManagerDialog(QDialog):
     """Modal dialog for cookie management."""
 
     cookies_changed = Signal()  # Emitted when cookies are added/deleted
+    _credit_result = Signal(int, str)  # (row, text) — thread-safe credit update
 
     def __init__(self, api, translator, parent=None, cookie_api=None, active_flow_id=None, workflow_api=None):
         super().__init__(parent)
@@ -32,6 +33,8 @@ class CookieManagerDialog(QDialog):
         self.cookie_api = cookie_api
         self.workflow_api = workflow_api
         self._active_flow_id = int(active_flow_id) if active_flow_id else None
+        self._credit_buttons = {}  # row → QPushButton
+        self._credit_result.connect(self._on_credit_result)
         self.setObjectName("cookie_manager_dialog")
         self.setWindowTitle(self.translator.t("cookie.title"))
         self.setMinimumSize(700, 500)
@@ -277,6 +280,7 @@ class CookieManagerDialog(QDialog):
             credit_btn.clicked.connect(
                 lambda checked, cid=cookie_id, r=row, btn=credit_btn: self._on_check_credit(cid, r, btn)
             )
+            self._credit_buttons[row] = credit_btn
             action_layout.addWidget(credit_btn)
 
             del_btn = QPushButton("🗑️")
@@ -442,17 +446,15 @@ class CookieManagerDialog(QDialog):
 
         def _worker():
             try:
-                # Get the access token from this cookie
                 resp = self.cookie_api.get_api_keys(
                     flow_id=self._active_flow_id,
                     provider=PROVIDER,
                     status="active",
                 )
                 if not resp.success or not resp.data:
-                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                    self._credit_result.emit(row, "❌")
                     return
 
-                # Find the matching cookie by id
                 token = ""
                 for item in resp.data.get("items", []):
                     if str(item.get("id", "")) == cookie_id:
@@ -460,29 +462,31 @@ class CookieManagerDialog(QDialog):
                         break
 
                 if not token:
-                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                    self._credit_result.emit(row, "❌")
                     return
 
                 credit_resp = self.workflow_api.get_credit_status(token)
                 if credit_resp.success and credit_resp.data:
                     credits = credit_resp.data.get("credits", 0)
-                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, f"💎 {credits:,}", btn))
+                    self._credit_result.emit(row, f"💎 {credits:,}")
                 else:
-                    QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                    self._credit_result.emit(row, "❌")
             except Exception as e:
                 logger.error(f"check_credit exception: {e}")
-                QTimer.singleShot(0, lambda: self._set_credit_cell(row, "❌", btn))
+                self._credit_result.emit(row, "❌")
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _set_credit_cell(self, row: int, text: str, btn: QPushButton):
-        """Update the Credits cell and re-enable the button (main thread)."""
+    def _on_credit_result(self, row: int, text: str):
+        """Handle credit result on main thread (via signal)."""
         if row < self._table.rowCount():
             item = QTableWidgetItem(text)
             item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(row, 4, item)
-        btn.setEnabled(True)
-        btn.setText("💎")
+        btn = self._credit_buttons.get(row)
+        if btn:
+            btn.setEnabled(True)
+            btn.setText("💎")
 
     # ── Helpers ───────────────────────────────────────────────────────
 
