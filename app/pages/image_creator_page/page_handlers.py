@@ -439,6 +439,40 @@ class PageHandlersMixin:
                 upload_status=self._upload_status.get(tid, ""),
             )
 
+    def _on_cancel_running(self):
+        """Cancel all running tasks — stop worker and mark them as error."""
+        if not self._is_generating and not self._running_task_ids:
+            logger.info("⏹ Cancel: nothing running")
+            return
+
+        logger.info(f"⏹ Cancelling {len(self._running_task_ids)} running task(s)")
+
+        # Stop the worker thread
+        if self._worker:
+            self._worker.stop()
+
+        # Mark all running tasks as error
+        from datetime import datetime
+        for tid in list(self._running_task_ids):
+            self.api.update_task(tid, {
+                "status": "error",
+                "progress": 0,
+                "error": "Cancelled by user",
+                "completed_at": datetime.now().isoformat(timespec="seconds"),
+            })
+
+        # Clean up state
+        self._running_task_ids.clear()
+        self._local_progress.clear()
+        self._task_start_times.clear()
+        self._upload_status.clear()
+        self._progress_timer.stop()
+        self._is_generating = False
+        self._worker = None
+
+        self.refresh_data()
+        logger.info("⏹ All running tasks cancelled")
+
     def _on_worker_finished(self):
         """Called when all tasks complete."""
         self._is_generating = False

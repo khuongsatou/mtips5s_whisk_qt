@@ -66,6 +66,7 @@
     "toolbar.search_prompt": "Search prompt...",
     "toolbar.filter_all": "All",
     "toolbar.select_errors": "Select all errors",
+    "toolbar.cancel_running": "Cancel running tasks",
     "config.auto_retry": "Auto retry errors (max 2×, every 60s)",
     "toolbar.confirm_delete": "Are you sure you want to delete the selected items?",
     "toolbar.confirm_delete_all": "Are you sure you want to delete all items?",

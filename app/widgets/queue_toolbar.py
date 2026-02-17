@@ -26,6 +26,7 @@ class QueueToolbar(QWidget):
     search_changed = Signal(str)
     status_filter_changed = Signal(str)
     select_errors = Signal()
+    cancel_running = Signal()
 
     def __init__(self, translator, parent=None):
         super().__init__(parent)
@@ -74,6 +75,13 @@ class QueueToolbar(QWidget):
         self._select_errors_btn.setToolTip(self.translator.t('toolbar.select_errors'))
         self._select_errors_btn.clicked.connect(self.select_errors.emit)
         layout.addWidget(self._select_errors_btn)
+
+        self._cancel_running_btn = QPushButton("⏹")
+        self._cancel_running_btn.setObjectName("toolbar_danger_button")
+        self._cancel_running_btn.setCursor(Qt.PointingHandCursor)
+        self._cancel_running_btn.setToolTip(self.translator.t('toolbar.cancel_running'))
+        self._cancel_running_btn.clicked.connect(self.cancel_running.emit)
+        layout.addWidget(self._cancel_running_btn)
 
         # --- Search input ---
         self._search_input = QLineEdit()
@@ -187,6 +195,7 @@ class QueueToolbar(QWidget):
         self._prev_page_btn.setToolTip(self.translator.t('toolbar.prev_page'))
         self._next_page_btn.setToolTip(self.translator.t('toolbar.next_page'))
         self._search_input.setPlaceholderText(f"🔍 {self.translator.t('toolbar.search_prompt')}")
+        self._cancel_running_btn.setToolTip(self.translator.t('toolbar.cancel_running'))
         self._populate_status_filter()
 
     def _populate_status_filter(self):

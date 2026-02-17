@@ -142,6 +142,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
         self._toolbar.download_all.connect(self._on_download_all)
         self._toolbar.select_errors.connect(self._table.select_errors)
+        self._toolbar.cancel_running.connect(self._on_cancel_running)
 
         # Pagination
         self._toolbar.prev_page.connect(self._table.prev_page)
