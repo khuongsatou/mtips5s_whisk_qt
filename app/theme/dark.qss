@@ -27,6 +27,13 @@ QLabel#sidebar_title {
     padding: 0;
     letter-spacing: 1px;
 }
+QLabel#sidebar_branding {
+    color: #FFD700;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0;
+    letter-spacing: 0.5px;
+}
 QWidget#sidebar_logo_container {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 rgba(255, 255, 255, 0.12),

@@ -5,7 +5,7 @@ Supports expanded (icon + text) and collapsed (icon-only) modes.
 """
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSpacerItem, QSizePolicy
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QDesktopServices
 import os
 
 
@@ -71,12 +71,23 @@ class Sidebar(QWidget):
         self._title.setObjectName("sidebar_title")
         title_col.addWidget(self._title)
 
+        self._branding = QLabel("1 Nút Nhấn")
+        self._branding.setObjectName("sidebar_branding")
+        title_col.addWidget(self._branding)
+
         self._subtitle = QLabel(self.translator.t("app.version"))
         self._subtitle.setObjectName("sidebar_subtitle")
         title_col.addWidget(self._subtitle)
 
         logo_row.addLayout(title_col)
         layout.addLayout(logo_row)
+
+        # Make logo area clickable
+        from PySide6.QtCore import QUrl
+        logo_container.setCursor(Qt.PointingHandCursor)
+        logo_container.mousePressEvent = lambda ev: QDesktopServices.openUrl(
+            QUrl("https://www.youtube.com/@KhuongDrama/videos")
+        )
 
         # Navigation buttons
         for key, icon, label_key in self.NAV_ITEMS:
