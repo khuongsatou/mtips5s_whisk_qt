@@ -86,7 +86,7 @@ class TestGenerationWorkerInit:
 
     def test_timeout_constant(self):
         worker = _make_worker()
-        assert worker.TASK_TIMEOUT == 120
+        assert worker.TASK_TIMEOUT == 60
 
     def test_initial_stop_flag_false(self):
         worker = _make_worker()
