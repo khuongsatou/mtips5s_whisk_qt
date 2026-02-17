@@ -56,7 +56,16 @@ class TaskQueueTable(QTableWidget):
         self._current_page: int = 0  # 0-indexed
         self._search_text: str = ""
         self._status_filter: str = ""  # empty = all
-        self._sort_done_at: str = "desc"  # "desc" (newest first), "asc" (oldest first)
+        # Generalized sort: column index → data key
+        self._SORTABLE_COLUMNS = {
+            1: "stt",           # STT
+            2: "task_name",     # Task
+            4: "prompt",        # Prompt
+            7: "error_message", # Message
+            8: "completed_at",  # Done At
+        }
+        self._sort_column: int | None = 8  # Default sort by Done At
+        self._sort_direction: str = "desc"  # "asc" or "desc"
         self.setObjectName("task_queue_table")
         self._setup_table()
         self.cellChanged.connect(self._on_cell_changed)
@@ -125,13 +134,13 @@ class TaskQueueTable(QTableWidget):
         for idx, key in enumerate(header_keys):
             if key:
                 label = self.translator.t(key)
-                # Add copy icon to Prompt header
-                if idx == 4:
-                    label = f"📋 {label}"
-                # Add sort icon to Done At header
-                if idx == 8:
-                    icon = "🔽" if self._sort_done_at == "desc" else "🔼"
-                    label = f"{icon} {label}"
+                # Add sort icon if this column is sortable
+                if idx in self._SORTABLE_COLUMNS:
+                    if idx == self._sort_column:
+                        icon = "🔽" if self._sort_direction == "desc" else "🔼"
+                        label = f"{icon} {label}"
+                    else:
+                        label = f"↕ {label}"
                 headers.append(label)
             else:
                 headers.append("")
@@ -141,13 +150,19 @@ class TaskQueueTable(QTableWidget):
         """Populate the table with task data using pagination + differential updates."""
         self._all_tasks = tasks
 
-        # Sort: running first → completed_at (user-chosen direction) → pending last
+        # Sort: running first → user-chosen column → pending last
         running = [t for t in tasks if t.get("status") == "running"]
-        with_time = [t for t in tasks if t.get("status") != "running" and t.get("completed_at")]
-        without_time = [t for t in tasks if t.get("status") != "running" and not t.get("completed_at")]
-        is_desc = self._sort_done_at == "desc"
-        with_time.sort(key=lambda t: t.get("completed_at", ""), reverse=is_desc)
-        self._all_tasks = running + with_time + without_time
+        non_running = [t for t in tasks if t.get("status") != "running"]
+
+        if self._sort_column is not None:
+            sort_key = self._SORTABLE_COLUMNS.get(self._sort_column, "")
+            is_desc = self._sort_direction == "desc"
+            non_running.sort(
+                key=lambda t: (t.get(sort_key) or ""),
+                reverse=is_desc,
+            )
+
+        self._all_tasks = running + non_running
 
         filtered = self._get_filtered_tasks()
 
@@ -604,15 +619,21 @@ class TaskQueueTable(QTableWidget):
         QDesktopServices.openUrl(QUrl(url))
 
     def _on_header_click(self, section: int):
-        """Handle header click — Prompt column (4) copies, Done At (8) sorts."""
-        if section == 4:  # Prompt column
+        """Handle header click — sortable columns toggle sort, Prompt also copies."""
+        if section == 4:  # Prompt column: copy all prompts
             self._copy_all_prompts()
-        elif section == 8:  # Done At column
-            self._toggle_done_at_sort()
+        if section in self._SORTABLE_COLUMNS:
+            self._toggle_column_sort(section)
 
-    def _toggle_done_at_sort(self):
-        """Toggle sort direction for the Done At column and refresh."""
-        self._sort_done_at = "asc" if self._sort_done_at == "desc" else "desc"
+    def _toggle_column_sort(self, column: int):
+        """Toggle sort direction for the given column and refresh."""
+        if self._sort_column == column:
+            # Same column — flip direction
+            self._sort_direction = "asc" if self._sort_direction == "desc" else "desc"
+        else:
+            # Different column — set as active, default desc
+            self._sort_column = column
+            self._sort_direction = "desc"
         self._current_data = None  # Force full rebuild
         self._update_headers()
         self.load_data(self._all_tasks)
