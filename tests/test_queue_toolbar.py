@@ -28,11 +28,6 @@ class TestQueueToolbarInit:
     def test_has_retry_btn(self):
         assert self.toolbar._retry_btn is not None
 
-    def test_has_run_selected_btn(self):
-        assert self.toolbar._run_selected_btn is not None
-
-    def test_has_run_all_btn(self):
-        assert self.toolbar._run_all_btn is not None
 
     def test_object_name(self):
         assert self.toolbar.objectName() == "queue_toolbar"
@@ -67,13 +62,6 @@ class TestQueueToolbarSignals:
         with self.qtbot.waitSignal(self.toolbar.retry_errors, timeout=500):
             self.toolbar._retry_btn.click()
 
-    def test_run_selected_signal(self):
-        with self.qtbot.waitSignal(self.toolbar.run_selected, timeout=500):
-            self.toolbar._run_selected_btn.click()
-
-    def test_run_all_signal(self):
-        with self.qtbot.waitSignal(self.toolbar.run_all, timeout=500):
-            self.toolbar._run_all_btn.click()
 
 
 class TestQueueToolbarRetranslate:

@@ -135,20 +135,6 @@ class QueueToolbar(QWidget):
         self._retry_btn.clicked.connect(self.retry_errors.emit)
         layout.addWidget(self._retry_btn)
 
-        self._run_selected_btn = QPushButton("▶")
-        self._run_selected_btn.setObjectName("toolbar_run_button")
-        self._run_selected_btn.setCursor(Qt.PointingHandCursor)
-        self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
-        self._run_selected_btn.clicked.connect(self.run_selected.emit)
-        layout.addWidget(self._run_selected_btn)
-
-        self._run_all_btn = QPushButton("⏩")
-        self._run_all_btn.setObjectName("toolbar_run_button")
-        self._run_all_btn.setCursor(Qt.PointingHandCursor)
-        self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))
-        self._run_all_btn.clicked.connect(self.run_all.emit)
-        layout.addWidget(self._run_all_btn)
-
     def update_page_info(self, current_page: int, total_pages: int):
         """Update the page label and enable/disable prev/next buttons."""
         self._page_label.setText(f"{current_page} / {total_pages}")
@@ -169,8 +155,6 @@ class QueueToolbar(QWidget):
         self._select_errors_btn.setToolTip(self.translator.t('toolbar.select_errors'))
         self._download_all_btn.setToolTip(self.translator.t('toolbar.download_all'))
         self._retry_btn.setToolTip(self.translator.t('toolbar.retry_errors'))
-        self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
-        self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))
         self._prev_page_btn.setToolTip(self.translator.t('toolbar.prev_page'))
         self._next_page_btn.setToolTip(self.translator.t('toolbar.next_page'))
         self._cancel_running_btn.setToolTip(self.translator.t('toolbar.cancel_running'))

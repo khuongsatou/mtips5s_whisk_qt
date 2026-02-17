@@ -13,7 +13,7 @@ import time
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
-    QLineEdit, QComboBox,
+    QLineEdit, QComboBox, QPushButton,
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from app.widgets.config_panel import ConfigPanel
@@ -139,6 +139,20 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         row.setContentsMargins(8, 6, 8, 4)
         row.setSpacing(8)
 
+        # Run Selected button
+        self._run_selected_btn = QPushButton("▶")
+        self._run_selected_btn.setObjectName("toolbar_run_button")
+        self._run_selected_btn.setCursor(Qt.PointingHandCursor)
+        self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
+        row.addWidget(self._run_selected_btn)
+
+        # Run All button
+        self._run_all_btn = QPushButton("⏩")
+        self._run_all_btn.setObjectName("toolbar_run_button")
+        self._run_all_btn.setCursor(Qt.PointingHandCursor)
+        self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))
+        row.addWidget(self._run_all_btn)
+
         # Search input
         self._search_input = QLineEdit()
         self._search_input.setObjectName("toolbar_search")
@@ -191,6 +205,8 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._search_input.setPlaceholderText(
             f"🔍 {self.translator.t('toolbar.search_prompt')}"
         )
+        self._run_selected_btn.setToolTip(self.translator.t('toolbar.run_selected'))
+        self._run_all_btn.setToolTip(self.translator.t('toolbar.run_all'))
         self._populate_status_filter()
 
     def _connect_signals(self):
@@ -209,8 +225,8 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._toolbar.delete_selected.connect(self._on_delete_selected)
         self._toolbar.delete_all.connect(self._on_delete_all)
         self._toolbar.retry_errors.connect(self._on_retry_errors)
-        self._toolbar.run_selected.connect(self._on_run_selected)
-        self._toolbar.run_all.connect(self._on_run_all)
+        self._run_selected_btn.clicked.connect(self._on_run_selected)
+        self._run_all_btn.clicked.connect(self._on_run_all)
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
         self._toolbar.download_all.connect(self._on_download_all)
         self._toolbar.select_errors.connect(self._table.select_errors)
