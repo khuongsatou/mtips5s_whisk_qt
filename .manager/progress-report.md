@@ -1,6 +1,6 @@
 # 📊 Báo Cáo Tiến Độ Dự Án — Whisk Desktop
 
-> **Ngày**: 2026-02-16 17:50 | **Phiên bản**: PySide6 6.9.3 | **Python**: 3.12.8
+> **Ngày**: 2026-02-17 17:12 | **Phiên bản**: PySide6 6.9.3 | **Python**: 3.12.8
 
 ---
 
@@ -8,21 +8,21 @@
 
 Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Whisk, với hệ thống queue quản lý batch generation, multi-project tabs, và giao diện hiện đại light/dark theme.
 
-| Metric          | Giá trị           |
-| --------------- | ----------------- |
-| **App Code**    | 9,284 dòng Python |
-| **Test Code**   | 5,363 dòng Python |
-| **Theme (QSS)** | 3,035 dòng        |
-| **Total Tests** | **637 ✅ passed** |
-| **Coverage**    | **81%**           |
-| **Features**    | **63 hoàn thành** |
-| **Build**       | macOS .app + DMG  |
+| Metric          | Giá trị            |
+| --------------- | ------------------ |
+| **App Code**    | 10,974 dòng Python |
+| **Test Code**   | 5,596 dòng Python  |
+| **Theme (QSS)** | 3,035 dòng         |
+| **i18n (JSON)** | 394 dòng           |
+| **Total Tests** | **650 ✅ passed**  |
+| **Features**    | **90 hoàn thành**  |
+| **Build**       | macOS .app + DMG   |
 
 ---
 
-## ✅ Tính Năng Đã Hoàn Thành (63)
+## ✅ Tính Năng Đã Hoàn Thành (90)
 
-### 🎨 UI/UX (27 features)
+### 🎨 UI/UX (28 features)
 
 | #   | Feature                            | Trạng thái |
 | --- | ---------------------------------- | ---------- |
@@ -47,14 +47,15 @@ Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Wh
 | 19  | Scroll Position Preservation       | ✅         |
 | 20  | Download All Button                | ✅         |
 | 21  | Add-to-Queue State Management      | ✅         |
-| 22  | Threaded Login with Loading        | ✅ ⭐      |
-| 23  | Disabled Button Styling            | ✅ ⭐      |
+| 22  | Threaded Login with Loading        | ✅         |
+| 23  | Disabled Button Styling            | ✅         |
 | 24  | Chrome-style Project Tabs          | ✅         |
-| 25  | Tab Bar Styling                    | ✅         |
-| 26  | Folder Button in Progress Column   | ✅         |
-| 27  | Image Preview in Queue             | ✅         |
+| 25  | Folder Button in Progress Column   | ✅         |
+| 26  | Image Preview in Queue             | ✅         |
+| 27  | Ref Mode Toggle Buttons (UI)       | ✅         |
+| 28  | Sort Toggle on DONE AT Column      | ✅ ⭐      |
 
-### ⚙️ Backend (28 features)
+### ⚙️ Backend (34 features)
 
 | #   | Feature                          | Trạng thái |
 | --- | -------------------------------- | ---------- |
@@ -67,25 +68,31 @@ Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Wh
 | 7   | Queue Checkpoint (save/load)     | ✅         |
 | 8   | Split Base URLs (admin/labs)     | ✅         |
 | 9   | Prompt Normalizer (text/JSON)    | ✅         |
-| 10  | Per-Task Timeout (2min)          | ✅         |
+| 10  | Per-Task Timeout (60s)           | ✅         |
 | 11  | Re-run Completed Tasks           | ✅         |
 | 12  | Project-based Save Paths         | ✅         |
 | 13  | Workflow API Client              | ✅         |
 | 14  | Cookie API Client                | ✅         |
 | 15  | Flow API Client                  | ✅         |
 | 16  | API Config (env-based)           | ✅         |
-| 17  | Workflow Persistence (QSettings) | ✅ ⭐      |
-| 18  | Per-Project Queue Isolation      | ✅ ⭐      |
-| 19  | Cookie Expiration Validation     | ✅ ⭐      |
-| 20  | Flow Name in Save Paths          | ✅ ⭐      |
+| 17  | Workflow Persistence (QSettings) | ✅         |
+| 18  | Per-Project Queue Isolation      | ✅         |
+| 19  | Cookie Expiration Validation     | ✅         |
+| 20  | Flow Name in Save Paths          | ✅         |
 | 21  | Delete Flow Endpoint             | ✅         |
 | 22  | Delete API Key Endpoint          | ✅         |
 | 23  | Auto Add to Queue                | ✅         |
 | 24  | Run All Generation               | ✅         |
-| 25  | Save Button for Images           | ✅         |
-| 26  | Fix Save Path with Project Name  | ✅         |
-| 27  | Fix Prompt Edit Persistence      | ✅         |
-| 28  | Fix Output Image Display         | ✅         |
+| 25  | Stuck Task Cleanup (on reload)   | ✅         |
+| 26  | Max 300 Prompt Validation        | ✅         |
+| 27  | Completion Timestamp Persistence | ✅         |
+| 28  | Crash Fix (deleteLater race)     | ✅         |
+| 29  | Background Ref Upload (QThread)  | ✅         |
+| 30  | Token Refresh + Server Logout    | ✅ ⭐      |
+| 31  | Auto-Recovery Login Cascade      | ✅ ⭐      |
+| 32  | Dynamic Timeout Budget (60s)     | ✅ ⭐      |
+| 33  | Single Mode Preload Injection    | ✅ ⭐      |
+| 34  | Ref Image Persistence Fix        | ✅ ⭐      |
 
 ### 🌐 i18n (2 features)
 
@@ -94,7 +101,7 @@ Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Wh
 | 1   | i18n System (en/vi)    | ✅         |
 | 2   | Translation Management | ✅         |
 
-### 🔧 DevOps (6 features)
+### 🔧 DevOps (7 features)
 
 | #   | Feature                           | Trạng thái |
 | --- | --------------------------------- | ---------- |
@@ -104,76 +111,45 @@ Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Wh
 | 4   | Universal Binary (x86_64 + arm64) | ✅         |
 | 5   | DMG Installer                     | ✅         |
 | 6   | Native Mach-O Launcher            | ✅         |
+| 7   | File Splitting Rule (>500 lines)  | ✅         |
+
+### 🔍 QA (19 features)
+
+| #   | Feature                                 | Trạng thái |
+| --- | --------------------------------------- | ---------- |
+| 1   | Timeout Countdown (⏱ elapsed)           | ✅         |
+| 2   | Auto-Retry Failed Tasks                 | ✅         |
+| 3   | Prompt Search Filter                    | ✅         |
+| 4   | Status Filter (toolbar)                 | ✅         |
+| 5   | Toast Notifications (batch done)        | ✅         |
+| 6   | Select All Errors (⚠️ button)           | ✅         |
+| 7   | Task Count Statistics (toolbar)         | ✅         |
+| 8   | Prompt Count (config panel)             | ✅         |
+| 9   | AI Fix Buttons (GPT/Gemini)             | ✅         |
+| 10  | Copy All Prompts (header click)         | ✅         |
+| 11  | Completion Timestamp Column             | ✅         |
+| 12  | Sort by Newest Completed                | ✅         |
+| 13  | Per-Category Get ID (title/scene/style) | ✅         |
+| 14  | Queue Table Pagination                  | ✅         |
+| 15  | Upload Progress Feedback                | ✅         |
+| 16  | Prompt Edit Persistence                 | ✅         |
+| 17  | Save Button for Images                  | ✅         |
+| 18  | Fix Save Path with Project Name         | ✅         |
+| 19  | Fix Output Image Display                | ✅         |
 
 ---
 
-## 📈 Test Coverage Chi Tiết
+## ⭐ Thay Đổi Mới Nhất (2026-02-17)
 
-### Modules 90%+ (Tốt)
-
-| Module                     | Coverage |
-| -------------------------- | -------- |
-| `collapsible_section.py`   | 100% ✅  |
-| `toggle_switch.py`         | 100% ✅  |
-| `data_table.py`            | 100% ✅  |
-| `queue_toolbar.py`         | 100% ✅  |
-| `theme_manager.py`         | 100% ✅  |
-| `base_api.py`              | 100% ✅  |
-| `utils.py`                 | 100% ✅  |
-| `dashboard_page.py`        | 99% ✅   |
-| `sidebar.py`               | 99% ✅   |
-| `cookie_manager_dialog.py` | 99% ✅   |
-| `token_manager_dialog.py`  | 98% ✅   |
-| `auth_manager.py`          | 97% ✅   |
-| `log_panel.py`             | 97% ✅   |
-| `prompt_normalizer.py`     | 97% ✅   |
-| `flow_api.py`              | 97% ✅   |
-| `login_dialog.py`          | 96% ✅   |
-| `status_badge.py`          | 95% ✅   |
-| `workflow_api.py`          | 95% ✅   |
-| `i18n/translator.py`       | 94% ✅   |
-| `config_panel.py`          | 92% ✅   |
-| `styled_message_box.py`    | 92% ✅   |
-| `project_tab_bar.py`       | 91% ✅   |
-| `task_queue_table.py`      | 90% ✅   |
-
-### Modules 80-89% (Ổn)
-
-| Module                      | Coverage |
-| --------------------------- | -------- |
-| `reference_image_grid.py`   | 86%      |
-| `settings_page.py`          | 86%      |
-| `header.py`                 | 85%      |
-| `project_manager_dialog.py` | 85%      |
-| `items_page.py`             | 85%      |
-| `mock_api.py`               | 80%      |
-| `models.py`                 | 81%      |
-
-### Modules cần cải thiện
-
-| Module                  | Coverage | Ghi chú                            |
-| ----------------------- | -------- | ---------------------------------- |
-| `image_creator_page.py` | 24% 🟡   | Trang chính, logic phức tạp        |
-| `main_window.py`        | 0% 🔴    | Khó test do phụ thuộc nhiều widget |
-| `app.py`                | 0% 🔴    | Entry point, ít logic              |
-
----
-
-## ⭐ Thay Đổi Hôm Nay (2026-02-16)
-
-| #   | Thay đổi                  | Mô tả                                                |
-| --- | ------------------------- | ---------------------------------------------------- |
-| 1   | **Workflow Persistence**  | Lưu workflow ID/name vào QSettings theo flow_id      |
-| 2   | **Download All Button**   | Nút tải tất cả ảnh hoàn thành trong queue            |
-| 3   | **Add-to-Queue State**    | Nút "Add to queue" disable khi chưa link workflow    |
-| 4   | **Reset Config Fix**      | Sửa lỗi aspect ratio reset + re-enable button        |
-| 5   | **Per-Project Queue**     | Mỗi project tab có MockApi riêng, không chia sẻ data |
-| 6   | **Cookie Expiration**     | Validate cookie hết hạn trước khi tạo workflow       |
-| 7   | **Remove 4:3 Ratio**      | Bỏ tỉ lệ 4:3, chỉ giữ 16:9, 9:16, 1:1                |
-| 8   | **Disable HD/Ultra**      | HD và Ultra quality bị disable (chưa hỗ trợ)         |
-| 9   | **Login Loading**         | Threaded login + spinner animation khi đợi API       |
-| 10  | **Disabled Button Style** | Nút disabled có màu khác biệt rõ ràng                |
-| 11  | **Flow Name in Path**     | Thêm tên project vào folder lưu ảnh                  |
+| #   | Thay đổi                      | Mô tả                                                      |
+| --- | ----------------------------- | ---------------------------------------------------------- |
+| 1   | **Token Refresh + Logout**    | Refresh access_token via refresh_token, server-side logout |
+| 2   | **Auto-Recovery Cascade**     | 3-step: refresh_token → key_code → login dialog            |
+| 3   | **Dynamic Timeout Budget**    | HTTP timeout = remaining TASK_TIMEOUT (always ≤60s total)  |
+| 4   | **Single Mode Preload**       | Skip re-upload khi ref images đã có mediaGenerationId      |
+| 5   | **Ref Image Persistence Fix** | Fix TaskItem.from_dict() thiếu reference_images_by_cat     |
+| 6   | **Sort Toggle on DONE AT**    | Click header 🔽/🔼 để sort newest/oldest completed         |
+| 7   | **File Splitting**            | 5 file lớn → packages (image_creator, config_panel, etc.)  |
 
 ---
 
@@ -181,30 +157,36 @@ Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Wh
 
 ```
 whisk_pro/
-├── main.py                    # Entry point
+├── main.py                          # Entry point
 ├── app/
-│   ├── app.py                 # QApplication setup
-│   ├── main_window.py         # Multi-tab window management
-│   ├── auth/                  # Login, session, user profile
-│   ├── api/                   # API clients (mock, workflow, cookie, flow)
-│   ├── i18n/                  # Translations (en, vi)
-│   ├── pages/                 # ImageCreator, Dashboard, Settings, Items
-│   ├── theme/                 # ThemeManager + light.qss/dark.qss
-│   ├── widgets/               # Reusable UI components
-│   └── assets/                # Icons, logos
-└── tests/                     # 637 pytest tests
+│   ├── app.py                       # QApplication setup
+│   ├── main_window.py               # Multi-tab window management
+│   ├── auth/                        # Login, session, token refresh, auto-recovery
+│   ├── api/
+│   │   ├── models.py                # TaskItem, FlowItem, ApiResponse
+│   │   ├── mock_api/                # Mock API (queue_ops, resource_ops, sample_data)
+│   │   ├── workflow_api/            # Whisk image generation + upload
+│   │   ├── cookie_api.py            # Cookie/API-key REST client
+│   │   └── flow_api.py              # Flow/project REST client
+│   ├── i18n/                        # Translations (en.json, vi.json)
+│   ├── pages/
+│   │   └── image_creator_page/      # Page, handlers, workers (split package)
+│   ├── theme/                       # ThemeManager + light.qss/dark.qss
+│   └── widgets/
+│       ├── config_panel/            # Build sections, settings handlers (split)
+│       ├── task_queue_table/         # Table + helpers (split)
+│       └── ...                      # sidebar, header, toolbar, dialogs
+└── tests/                           # 650 pytest tests
 ```
 
 ---
 
 ## 🚧 Rủi Ro & Lưu Ý
 
-| Rủi ro                               | Mức độ    | Ghi chú                        |
-| ------------------------------------ | --------- | ------------------------------ |
-| `image_creator_page.py` coverage 24% | 🟡 Medium | Cần integration tests          |
-| `main_window.py` coverage 0%         | 🟡 Medium | Khó test, cần mock nhiều       |
-| HD/Ultra quality disabled            | 🟢 Low    | Tính năng chưa sẵn sàng từ API |
+| Rủi ro                    | Mức độ | Ghi chú                        |
+| ------------------------- | ------ | ------------------------------ |
+| HD/Ultra quality disabled | 🟢 Low | Tính năng chưa sẵn sàng từ API |
 
 ---
 
-> **Tổng kết**: Dự án ổn định với **637 tests passed, 81% coverage**. Tất cả tính năng core đã hoàn thành. Hôm nay đã thêm 11 cải tiến quan trọng về UX và data isolation.
+> **Tổng kết**: Dự án ổn định với **650 tests passed, 90 features hoàn thành**. Auth system hoàn chỉnh với auto-recovery cascade. Cấu trúc code đã được split thành packages cho maintainability.

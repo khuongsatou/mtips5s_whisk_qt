@@ -17,6 +17,7 @@ from app.widgets.project_tab_bar import ProjectTabBar
 from app.widgets.cookie_manager_dialog import CookieManagerDialog
 from app.widgets.project_manager_dialog import ProjectManagerDialog
 from app.widgets.token_manager_dialog import TokenManagerDialog
+from app.pages.dashboard_page import DashboardPage
 from app.pages.image_creator_page import ImageCreatorPage
 from app.pages.settings_page import SettingsPage
 
@@ -29,6 +30,7 @@ class MainWindow(QMainWindow):
     """Main application window with sidebar navigation and tabbed content."""
 
     PAGE_TITLES = {
+        "dashboard": "nav.dashboard",
         "image_creator": "nav.image_creator",
         "settings": "nav.settings",
     }
@@ -82,9 +84,13 @@ class MainWindow(QMainWindow):
         self._tab_bar = ProjectTabBar()
         right_panel.addWidget(self._tab_bar)
 
-        # Content stack — holds tab pages + settings
+        # Content stack — holds tab pages + dashboard + settings
         self._tab_stack = QStackedWidget()
         self._tab_stack.setObjectName("tab_content_stack")
+
+        # Dashboard page
+        self._dashboard = DashboardPage(self.translator, self.api)
+        self._tab_stack.addWidget(self._dashboard)
 
         # Settings page is always the LAST widget in the stack
         self._settings = SettingsPage(self.translator, self.theme_manager, self.auth_manager)
@@ -130,12 +136,16 @@ class MainWindow(QMainWindow):
     # ── Page switching ───────────────────────────────────────────────
 
     def _switch_page(self, page_key: str):
-        """Switch between image_creator (tabs) and settings."""
+        """Switch between dashboard, image_creator (tabs), and settings."""
         self._current_page = page_key
         title_key = self.PAGE_TITLES.get(page_key, page_key)
         self._header.set_page_title(self.translator.t(title_key))
 
-        if page_key == "settings":
+        if page_key == "dashboard":
+            self._tab_bar.setVisible(False)
+            self._tab_stack.setCurrentWidget(self._dashboard)
+            self._dashboard.refresh_data()
+        elif page_key == "settings":
             self._tab_bar.setVisible(False)
             self._tab_stack.setCurrentWidget(self._settings)
         else:

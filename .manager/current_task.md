@@ -3,26 +3,25 @@
 > **Owner**: 📋 Project Manager (`project-manager/SKILL.md`)
 
 **Status**: ✅ idle
-**Updated**: 2026-02-16
-**Iteration**: #3
+**Updated**: 2026-02-17
+**Iteration**: #5
 
 ---
 
 ## Active Task
 
-Added 📂 folder button in progress column. Installed Roboto font as app-wide default.
+QA test coverage improvement completed — 133 new tests added, total coverage 75%→82%.
 
-## Backlog
+## Backlog — Chưa Hoàn Thành
 
-| Priority | Task                        | Owner          | Status         |
-| -------- | --------------------------- | -------------- | -------------- |
-| P0       | Real API Integration        | ⚙️ Backend Dev | 🔄 Planned     |
-| P1       | Coverage → 60%              | 🧪 QA Engineer | ✅ Done (74%)  |
-| P1       | Cross-Platform Build (.app) | 🚀 DevOps      | ✅ Done        |
-| P1       | Auto-add queue on link      | ⚙️ Backend Dev | ✅ Done        |
-| P2       | Batch prompt processing     | ⚙️ Backend Dev | ⬜ Not Started |
-| P2       | Keyboard navigation audit   | 🎨 UI/UX Dev   | ⬜ Not Started |
-| P3       | Export/import profiles      | ⚙️ Backend Dev | ⬜ Not Started |
+| Priority | Task                      | Owner          | Status         | Ghi chú                              |
+| -------- | ------------------------- | -------------- | -------------- | ------------------------------------ |
+| P2       | Batch prompt processing   | ⚙️ Backend Dev | ⬜ Not Started | Xử lý hàng loạt prompt từ file ngoài |
+| P2       | Keyboard navigation audit | 🎨 UI/UX Dev   | ⬜ Not Started | Tab/Enter/Esc cho toàn bộ UI         |
+| P2       | Coverage → 90%            | 🧪 QA Engineer | ⬜ Not Started | Hiện tại 82%, cần thêm tests         |
+| P3       | Export/import profiles    | ⚙️ Backend Dev | ⬜ Not Started | Xuất/nhập cấu hình giữa các máy      |
+| P3       | Windows build (.exe)      | 🚀 DevOps      | ⬜ Not Started | Cross-compile hoặc CI/CD cho Windows |
+| P3       | Dashboard statistics page | 🎨 UI/UX Dev   | ⬜ Not Started | Thống kê số lượng ảnh đã tạo         |
 
 ## Blockers
 

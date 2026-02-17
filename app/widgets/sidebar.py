@@ -16,6 +16,7 @@ class Sidebar(QWidget):
     logout_clicked = Signal()
 
     NAV_ITEMS = [
+        ("dashboard", "📊", "nav.dashboard"),
         ("image_creator", "🖼️", "nav.image_creator"),
         ("settings", "⚙️", "nav.settings"),
     ]

@@ -1,34 +1,35 @@
 """
-Tests for DashboardPage — welcome message and stat cards.
+Tests for DashboardPage — stat cards, completion rate, recent activity, error summary.
 
-Uses a MagicMock api since MockApi doesn't implement get_items().
+Uses a MagicMock api with get_queue() returning task data.
 """
 import pytest
 from unittest.mock import MagicMock
+from app.api.models import ApiResponse
 from app.pages.dashboard_page import DashboardPage
 
 
-@pytest.fixture
-def page_api():
-    """Mock API that supports get_items for DashboardPage."""
+def _mock_api(tasks=None):
+    """Create mock API with get_queue returning given tasks."""
     api = MagicMock()
-    api.get_items.return_value = MagicMock(
-        success=True,
-        data=[
-            {"id": "1", "name": "A", "status": "completed"},
-            {"id": "2", "name": "B", "status": "pending"},
-            {"id": "3", "name": "C", "status": "in_progress"},
+    if tasks is None:
+        tasks = [
+            {"id": "1", "prompt": "sunset", "status": "completed", "completed_at": "2026-02-17 12:00"},
+            {"id": "2", "prompt": "mountain", "status": "pending"},
+            {"id": "3", "prompt": "ocean", "status": "running"},
+            {"id": "4", "prompt": "bad prompt", "status": "error", "error_message": "Timeout"},
         ]
-    )
+    api.get_queue.return_value = ApiResponse(success=True, data=tasks)
     return api
 
 
-class TestDashboardPageInit:
+class TestDashboardInit:
     """Test dashboard construction and initial state."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, qtbot, translator, page_api):
-        self.page = DashboardPage(translator, page_api)
+    def setup(self, qtbot, translator):
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
         qtbot.addWidget(self.page)
 
     def test_has_welcome_title(self):
@@ -41,57 +42,148 @@ class TestDashboardPageInit:
     def test_has_four_stat_cards(self):
         assert self.page._card_total is not None
         assert self.page._card_completed is not None
-        assert self.page._card_progress is not None
         assert self.page._card_pending is not None
+        assert self.page._card_errors is not None
 
-    def test_stat_cards_have_value_labels(self):
+    def test_stat_cards_have_labels(self):
         assert self.page._card_total["value_label"] is not None
-        assert self.page._card_completed["value_label"] is not None
+        assert self.page._card_total["text_label"] is not None
+
+    def test_has_completion_bar(self):
+        assert self.page._completion_bar is not None
 
     def test_has_recent_title(self):
         assert self.page._recent_title is not None
 
+    def test_has_error_title(self):
+        assert self.page._error_title is not None
 
-class TestDashboardPageRefresh:
-    """Test data refresh updates cards."""
+    def test_object_name(self):
+        assert self.page.objectName() == "dashboard_page"
+
+
+class TestDashboardRefresh:
+    """Test data refresh updates stat cards."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, qtbot, translator, page_api):
-        self.api = page_api
-        self.page = DashboardPage(translator, page_api)
+    def setup(self, qtbot, translator):
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
         qtbot.addWidget(self.page)
 
-    def test_refresh_counts_total(self):
+    def test_refresh_total(self):
         self.page.refresh_data()
-        assert self.page._card_total["value_label"].text() == "3"
+        assert self.page._card_total["value_label"].text() == "4"
 
-    def test_refresh_counts_completed(self):
+    def test_refresh_completed(self):
         self.page.refresh_data()
         assert self.page._card_completed["value_label"].text() == "1"
 
-    def test_refresh_counts_pending(self):
+    def test_refresh_pending(self):
         self.page.refresh_data()
-        assert self.page._card_pending["value_label"].text() == "1"
+        # pending + running
+        assert self.page._card_pending["value_label"].text() == "2"
 
-    def test_refresh_counts_in_progress(self):
+    def test_refresh_errors(self):
         self.page.refresh_data()
-        assert self.page._card_progress["value_label"].text() == "1"
+        assert self.page._card_errors["value_label"].text() == "1"
 
-    def test_refresh_with_empty_data(self):
-        self.api.get_items.return_value = MagicMock(success=True, data=[])
+    def test_completion_rate(self):
         self.page.refresh_data()
+        assert self.page._completion_bar.value() == 25  # 1/4 = 25%
+        assert "25%" in self.page._rate_percent.text()
+
+    def test_completion_rate_all_done(self):
+        self.api.get_queue.return_value = ApiResponse(
+            success=True,
+            data=[
+                {"id": "1", "status": "completed"},
+                {"id": "2", "status": "completed"},
+            ],
+        )
+        self.page.refresh_data()
+        assert self.page._completion_bar.value() == 100
+
+    def test_empty_queue(self):
+        self.api.get_queue.return_value = ApiResponse(success=True, data=[])
+        self.page.refresh_data()
+        assert self.page._card_total["value_label"].text() == "0"
+        assert self.page._completion_bar.value() == 0
+
+    def test_api_failure(self):
+        self.api.get_queue.return_value = ApiResponse(success=False, message="err")
+        self.page.refresh_data()
+        # Cards remain at initial "0" values
         assert self.page._card_total["value_label"].text() == "0"
 
 
-class TestDashboardPageRetranslate:
-    """Test retranslation."""
+class TestDashboardRecent:
+    """Test recent completed tasks list."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, qtbot, translator, page_api):
-        self.translator = translator
-        self.page = DashboardPage(translator, page_api)
+    def setup(self, qtbot, translator):
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
         qtbot.addWidget(self.page)
 
-    def test_retranslate_updates_texts(self):
+    def test_recent_shows_completed(self):
+        self.page.refresh_data()
+        count = self.page._recent_container.count()
+        assert count >= 1  # At least one completed task
+
+    def test_no_completed_shows_empty_state(self):
+        self.api.get_queue.return_value = ApiResponse(
+            success=True,
+            data=[{"id": "1", "status": "pending"}],
+        )
+        self.page.refresh_data()
+        assert self.page._recent_container.count() == 1  # empty state label
+
+
+class TestDashboardErrors:
+    """Test error summary section."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, qtbot, translator):
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
+        qtbot.addWidget(self.page)
+
+    def test_errors_shown(self):
+        self.page.refresh_data()
+        count = self.page._error_container.count()
+        assert count >= 1  # At least one error task
+
+    def test_no_errors_shows_empty_state(self):
+        self.api.get_queue.return_value = ApiResponse(
+            success=True,
+            data=[{"id": "1", "status": "completed"}],
+        )
+        self.page.refresh_data()
+        assert self.page._error_container.count() == 1  # "No errors" label
+
+
+class TestDashboardRetranslate:
+    """Test retranslation updates labels."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, qtbot, translator):
+        self.translator = translator
+        self.api = _mock_api()
+        self.page = DashboardPage(translator, self.api)
+        qtbot.addWidget(self.page)
+
+    def test_retranslate_updates_welcome(self):
         self.translator.set_language("vi")
         assert self.page._welcome_title.text()
+
+    def test_retranslate_updates_cards(self):
+        self.translator.set_language("vi")
+        assert self.page._card_total["text_label"].text()
+        assert self.page._card_errors["text_label"].text()
+
+    def test_retranslate_updates_sections(self):
+        self.translator.set_language("vi")
+        assert self.page._rate_title.text()
+        assert self.page._recent_title.text()
+        assert self.page._error_title.text()

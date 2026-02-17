@@ -193,5 +193,18 @@
     "login.welcome_back": "Chào mừng trở lại",
     "login.logout": "Đăng xuất",
     "login.forgot_key": "Quên mã key? Liên hệ Admin",
-    "download.no_images": "Không có ảnh đã tạo để tải."
+    "download.no_images": "Không có ảnh đã tạo để tải.",
+
+    "nav.dashboard": "Bảng điều khiển",
+    "dashboard.title": "Bảng Điều Khiển",
+    "dashboard.welcome": "Chào mừng trở lại!",
+    "dashboard.total_tasks": "Tổng Số Tasks",
+    "dashboard.completed": "Hoàn Thành",
+    "dashboard.pending": "Đang Chờ",
+    "dashboard.errors": "Lỗi",
+    "dashboard.completion_rate": "Tỉ Lệ Hoàn Thành",
+    "dashboard.recent_completed": "Hoàn Thành Gần Đây",
+    "dashboard.error_summary": "Tóm Tắt Lỗi",
+    "dashboard.no_tasks": "Chưa có task nào",
+    "dashboard.no_errors": "Không có lỗi — mọi task đang chạy tốt!"
 }

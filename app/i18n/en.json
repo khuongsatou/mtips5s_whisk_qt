@@ -193,5 +193,18 @@
     "login.welcome_back": "Welcome back",
     "login.logout": "Logout",
     "login.forgot_key": "Forgot key code? Contact Admin",
-    "download.no_images": "No generated images to download."
+    "download.no_images": "No generated images to download.",
+
+    "nav.dashboard": "Dashboard",
+    "dashboard.title": "Dashboard",
+    "dashboard.welcome": "Welcome back!",
+    "dashboard.total_tasks": "Total Tasks",
+    "dashboard.completed": "Completed",
+    "dashboard.pending": "Pending",
+    "dashboard.errors": "Errors",
+    "dashboard.completion_rate": "Completion Rate",
+    "dashboard.recent_completed": "Recent Completed",
+    "dashboard.error_summary": "Error Summary",
+    "dashboard.no_tasks": "No tasks yet",
+    "dashboard.no_errors": "No errors — all tasks running smoothly!"
 }

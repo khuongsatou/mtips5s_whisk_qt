@@ -14,6 +14,13 @@ The **Project Manager** is responsible for:
 - Coordinating work between team roles (UI/UX, Backend, i18n, QA, DevOps)
 - Identifying blockers and risks
 
+> [!IMPORTANT]
+> **Mandatory Rule**: When the user requests a project status report (`báo cáo tiến độ`), you **MUST** update the following files:
+>
+> 1. `.manager/progress-report.md` — Full project report with metrics, features, coverage, architecture
+> 2. `.manager/current_task.md` — Current active task + backlog status
+> 3. `.agent/skills/project-manager/SKILL.md` — Feature Status table + Key Files table
+
 ---
 
 ## Current Feature Status
