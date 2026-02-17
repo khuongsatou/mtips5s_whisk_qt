@@ -197,9 +197,10 @@ class DashboardPage(QWidget):
         response = self.api.get_queue()
         if not response.success:
             return
+        self.update_stats(response.data or [])
 
-        tasks = response.data or []
-
+    def update_stats(self, tasks: list):
+        """Update all dashboard displays from a list of task dicts."""
         # Count by status
         total = len(tasks)
         completed = sum(1 for t in tasks if t.get("status") == "completed")

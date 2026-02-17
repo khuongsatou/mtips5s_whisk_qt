@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
         if page_key == "dashboard":
             self._tab_bar.setVisible(False)
             self._tab_stack.setCurrentWidget(self._dashboard)
-            self._dashboard.refresh_data()
+            self._refresh_dashboard()
         elif page_key == "settings":
             self._tab_bar.setVisible(False)
             self._tab_stack.setCurrentWidget(self._settings)
@@ -155,6 +155,16 @@ class MainWindow(QMainWindow):
             if 0 <= idx < len(self._project_tabs):
                 self._tab_stack.setCurrentWidget(self._project_tabs[idx]["page"])
                 self._project_tabs[idx]["page"].refresh_data()
+
+    def _refresh_dashboard(self):
+        """Aggregate queue data from ALL project tabs and update dashboard."""
+        all_tasks = []
+        for tab_data in self._project_tabs:
+            page = tab_data["page"]
+            resp = page.api.get_queue()
+            if resp.success and resp.data:
+                all_tasks.extend(resp.data)
+        self._dashboard.update_stats(all_tasks)
 
     # ── Tab management ───────────────────────────────────────────────
 
@@ -192,7 +202,7 @@ class MainWindow(QMainWindow):
         })
 
         # Connect queue updates → dashboard refresh
-        page.queue_data_changed.connect(self._dashboard.refresh_data)
+        page.queue_data_changed.connect(self._refresh_dashboard)
 
         # Add to tab bar
         tab_index = self._tab_bar.add_tab(str(flow_id), flow_name)
