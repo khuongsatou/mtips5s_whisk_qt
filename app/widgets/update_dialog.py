@@ -203,7 +203,8 @@ class UpdateDialog(QDialog):
         latest = result["latest_version"]
         has_update = result["has_update"]
         self._download_url = result.get("download_url", "")
-        changelog = result.get("changelog", "")
+        changelog = result.get("changelog", [])
+        file_name = result.get("file_name", "")
 
         self._latest_card_label.setText(f"v{latest}")
 
@@ -211,9 +212,10 @@ class UpdateDialog(QDialog):
             self._latest_card_label.setStyleSheet(
                 "font-size: 20px; font-weight: 800; color: #10B981;"
             )
-            self._status_label.setText(
-                f"🎉 {self.translator.t('update.available')}"
-            )
+            status_text = f"🎉 {self.translator.t('update.available')}"
+            if file_name:
+                status_text += f"  •  📦 {file_name}"
+            self._status_label.setText(status_text)
             self._status_label.setStyleSheet(
                 "font-size: 14px; color: #10B981; font-weight: 700; padding: 8px 0;"
             )
@@ -230,8 +232,18 @@ class UpdateDialog(QDialog):
                 "font-size: 14px; color: #10B981; font-weight: 600; padding: 8px 0;"
             )
 
-        if changelog:
-            self._changelog_text.setPlainText(changelog)
+        # Format changelog entries
+        if changelog and isinstance(changelog, list):
+            lines = []
+            for entry in changelog:
+                ver = entry.get("version", "")
+                date = entry.get("date", "")
+                changes = entry.get("changes", [])
+                lines.append(f"═══  v{ver}  ({date})  ═══")
+                for change in changes:
+                    lines.append(f"  • {change}")
+                lines.append("")
+            self._changelog_text.setPlainText("\n".join(lines).strip())
 
     def _on_download(self):
         """Open download URL in default browser."""
