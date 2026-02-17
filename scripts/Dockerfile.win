@@ -12,7 +12,7 @@ WORKDIR /src
 # Copy project
 COPY . .
 
-# Install deps and build with correct Wine Python path
+# Install deps and build
 RUN $WINEPY -m pip install --no-cache-dir PySide6 pyinstaller && \
     $WINEPY -m PyInstaller build.spec --clean --noconfirm
 

@@ -2,7 +2,7 @@
 """
 Whisk Desktop — PyInstaller Build Spec.
 
-Builds the application for macOS (.app) and Windows (.exe).
+Builds the application for Windows (.exe).
 Bundles QSS themes and JSON translation files.
 """
 import sys
@@ -19,6 +19,7 @@ a = Analysis(
         ('app/theme/icons/*.svg', 'app/theme/icons'),
         ('app/i18n/*.json', 'app/i18n'),
         ('app/assets/*', 'app/assets'),
+        ('app/assets/fonts/*', 'app/assets/fonts'),
     ],
     hiddenimports=[
         'PySide6.QtSvg',

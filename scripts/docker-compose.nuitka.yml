@@ -1,0 +1,29 @@
+# ============================================================
+# Whisk Desktop — Docker Compose for Windows .exe Nuitka build
+# ============================================================
+# Usage:
+#   docker compose -f scripts/docker-compose.nuitka.yml up --build
+#
+# Output:
+#   dist/WhiskDesktop.exe (single native binary)
+# ============================================================
+
+services:
+  build-win-nuitka:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile.win.nuitka
+    platform: linux/amd64
+    volumes:
+      - ../dist:/output
+    environment:
+      - WINEDEBUG=-all
+    command: >
+      bash -c "
+        echo '✅ Copying Nuitka output...' &&
+        cp /src/dist/WhiskDesktop.exe /output/ &&
+        echo '========================================' &&
+        echo ' Output: dist/WhiskDesktop.exe' &&
+        echo ' 🛡️  Native compiled (anti-decompile)' &&
+        echo '========================================'
+      "

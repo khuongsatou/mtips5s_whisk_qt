@@ -1,0 +1,45 @@
+# ============================================================
+# Whisk Desktop — Windows .exe native build via Nuitka
+# Uses Wine + Python + MinGW-w64 inside Docker
+# Nuitka compiles Python → C → native .exe (anti-decompile)
+# ============================================================
+FROM --platform=linux/amd64 tobix/pywine:3.11
+
+ENV WINEDEBUG=-all
+ENV WINEPY="wine /opt/wineprefix/drive_c/Python/python.exe"
+
+WORKDIR /src
+
+# Install MinGW-w64 (C compiler for Nuitka) on the Linux host
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc-mingw-w64-x86-64 \
+    patchelf \
+    ccache \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project
+COPY . .
+
+# Install Nuitka + deps in Wine Python, then build
+RUN $WINEPY -m pip install --no-cache-dir \
+        PySide6 \
+        nuitka \
+        ordered-set \
+    && $WINEPY -m nuitka \
+        --standalone \
+        --onefile \
+        --mingw64 \
+        --enable-plugin=pyside6 \
+        --include-data-dir=app/i18n=app/i18n \
+        --include-data-dir=app/theme=app/theme \
+        --include-data-dir=app/assets=app/assets \
+        --include-package=app \
+        --windows-console-mode=disable \
+        --output-filename=WhiskDesktop.exe \
+        --output-dir=dist \
+        --remove-output \
+        --assume-yes-for-downloads \
+        --no-pyi-file \
+        main.py
+
+CMD ["echo", "Build complete"]
