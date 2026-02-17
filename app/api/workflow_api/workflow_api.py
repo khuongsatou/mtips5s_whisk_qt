@@ -547,41 +547,50 @@ class WorkflowApiClient:
             logger.error(f"❌ <<< generate_image exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
-    def get_credits(self, google_access_token: str, timeout: int = 10) -> ApiResponse:
+    def get_credit_status(self, google_access_token: str, timeout: int = 10) -> ApiResponse:
         """
         POST aisandbox-pa.googleapis.com/v1/whisk:getVideoCreditStatus
 
-        Returns ApiResponse with data containing credits count.
+        Fetches the user's remaining Google Labs credits.
+        Returns ApiResponse with data = {"credits": int, ...}.
         """
-        body = b"{}"
         headers = {
             "Accept": "*/*",
             "Content-Type": "text/plain;charset=UTF-8",
             "Authorization": f"Bearer {google_access_token}",
             "Origin": "https://labs.google",
             "Referer": "https://labs.google/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/144.0.0.0 Safari/537.36",
         }
 
         try:
             req = urllib.request.Request(
                 WHISK_CREDIT_URL,
-                data=body,
+                data=b"{}",
                 headers=headers,
                 method="POST",
             )
-            logger.info("📤 >>> POST getVideoCreditStatus")
+
+            logger.info(f"📤 >>> POST {WHISK_CREDIT_URL}")
 
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
-            credits = resp_body.get("credits", 0)
-            logger.info(f"📥 <<< 200 OK — credits={credits}")
+            credits_val = resp_body.get("credits", 0)
+            logger.info(f"📥 <<< 200 OK — credits: {credits_val}")
+
             return ApiResponse(success=True, data=resp_body)
 
         except urllib.error.HTTPError as e:
-            logger.error(f"❌ <<< {e.code} Error in get_credits")
-            return ApiResponse(success=False, message=f"HTTP {e.code}")
+            error_data = ""
+            try:
+                error_data = e.read().decode("utf-8")
+            except Exception:
+                pass
+            logger.error(f"❌ <<< {e.code} Error in get_credit_status")
+            return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:200]}")
         except Exception as e:
-            logger.error(f"❌ <<< get_credits exception: {e}")
+            logger.error(f"❌ <<< get_credit_status exception: {e}")
             return ApiResponse(success=False, message=str(e))
-

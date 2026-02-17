@@ -429,7 +429,9 @@ QLabel#header_credits_label {
     font-size: 12px;
     font-weight: 600;
     color: {{color-secondary}};
-    padding: 4px 8px;
+    background-color: {{bg-hover}};
+    border-radius: 8px;
+    padding: 4px 10px;
 }
 QPushButton#logout_btn {
     background-color: transparent;

@@ -163,9 +163,9 @@ class Header(QWidget):
         self._cookies_btn.setVisible(visible)
 
     def set_credits(self, credits: int):
-        """Display Google credits in the header."""
+        """Update the credits display in the header."""
         if credits >= 0:
             self._credits_label.setText(f"💎 {credits:,}")
-            self._credits_label.setToolTip(f"Google Credits: {credits:,}")
+            self._credits_label.setToolTip(f"Google Labs credits: {credits:,}")
         else:
             self._credits_label.setText("")

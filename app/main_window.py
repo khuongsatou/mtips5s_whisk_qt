@@ -7,10 +7,11 @@ Each project is a tab with its own ImageCreatorPage running in parallel.
 import json
 import logging
 import os
+import threading
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from app.widgets.sidebar import Sidebar
 from app.widgets.header import Header
 from app.widgets.project_tab_bar import ProjectTabBar
@@ -133,46 +134,6 @@ class MainWindow(QMainWindow):
         # Update header & cookie button for initial state
         self._update_header_for_current_tab()
 
-        # Fetch Google credits
-        self._fetch_credits()
-
-    # ── Google Credits ───────────────────────────────────────────────
-
-    def _fetch_credits(self):
-        """Fetch Google credits from the active cookie and display in header."""
-        if not self.cookie_api or not self.workflow_api:
-            return
-        try:
-            # Get first active tab's flow_id for cookie lookup
-            flow_id = None
-            if self._project_tabs:
-                fid = self._project_tabs[0].get("flow_id")
-                flow_id = int(fid) if fid else None
-
-            if not flow_id:
-                return
-
-            resp = self.cookie_api.get_api_keys(
-                flow_id=flow_id, provider="WHISK", status="active",
-            )
-            if not resp.success or not resp.data:
-                return
-
-            items = resp.data.get("items", [])
-            if not items:
-                return
-
-            google_token = items[0].get("value", "")
-            if not google_token:
-                return
-
-            credit_resp = self.workflow_api.get_credits(google_token)
-            if credit_resp.success and credit_resp.data:
-                credits = credit_resp.data.get("credits", 0)
-                self._header.set_credits(credits)
-        except Exception as e:
-            logger.warning(f"Failed to fetch credits: {e}")
-
     # ── Page switching ───────────────────────────────────────────────
 
     def _switch_page(self, page_key: str):
@@ -244,9 +205,8 @@ class MainWindow(QMainWindow):
             "page": page,
         })
 
-        # Connect queue updates → dashboard refresh + credits update
+        # Connect queue updates → dashboard refresh
         page.queue_data_changed.connect(self._refresh_dashboard)
-        page.queue_data_changed.connect(self._fetch_credits)
 
         # Add to tab bar
         tab_index = self._tab_bar.add_tab(str(flow_id), flow_name)
@@ -314,6 +274,8 @@ class MainWindow(QMainWindow):
             tab = self._project_tabs[idx]
             self._header.set_active_project_name(tab["flow_name"])
             self._header.set_cookie_btn_visible(True)
+            # Fetch credits in background
+            self._fetch_credits(tab["flow_id"])
         else:
             self._header.set_active_project_name("")
             self._header.set_cookie_btn_visible(False)
@@ -324,6 +286,37 @@ class MainWindow(QMainWindow):
         if 0 <= idx < len(self._project_tabs):
             return self._project_tabs[idx]["flow_id"]
         return None
+
+    # ── Credit fetch ─────────────────────────────────────────────────
+
+    def _fetch_credits(self, flow_id: str):
+        """Fetch Google Labs credits in a background thread."""
+        if not self.cookie_api or not self.workflow_api:
+            return
+
+        def _worker():
+            try:
+                resp = self.cookie_api.get_api_keys(
+                    flow_id=int(flow_id), provider="WHISK", status="active",
+                )
+                if not resp.success or not resp.data:
+                    return
+                items = resp.data.get("items", [])
+                if not items:
+                    return
+                token = items[0].get("value", "")
+                if not token:
+                    return
+
+                credit_resp = self.workflow_api.get_credit_status(token)
+                if credit_resp.success and credit_resp.data:
+                    credits = credit_resp.data.get("credits", 0)
+                    # Schedule UI update on main thread
+                    QTimer.singleShot(0, lambda: self._header.set_credits(credits))
+            except Exception as e:
+                logger.debug(f"Credit fetch failed: {e}")
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ── Persistence ──────────────────────────────────────────────────
 
