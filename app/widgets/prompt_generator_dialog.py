@@ -200,7 +200,10 @@ class PromptGeneratorDialog(QDialog):
                 font-size: 12px; gridline-color: #1f2937;
             }
             QTableWidget::item { padding: 4px 6px; }
-            QTableWidget::item:selected { background: #374151; }
+            QTableWidget::item:selected {
+                background: #6d28d9;
+                color: #ffffff;
+            }
             QHeaderView::section {
                 background: #1f2937; color: #9CA3AF;
                 font-size: 11px; font-weight: 600;
