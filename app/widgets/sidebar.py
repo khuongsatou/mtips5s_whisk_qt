@@ -135,6 +135,7 @@ class Sidebar(QWidget):
 
             self._title.setVisible(False)
             self._subtitle.setVisible(False)
+            self._branding.setVisible(False)
 
             for key, icon, label_key in self.NAV_ITEMS:
                 btn = self._buttons[key]
@@ -166,6 +167,7 @@ class Sidebar(QWidget):
             self._title.style().polish(self._title)
 
             self._subtitle.setVisible(True)
+            self._branding.setVisible(True)
 
             for key, icon, label_key in self.NAV_ITEMS:
                 btn = self._buttons[key]
