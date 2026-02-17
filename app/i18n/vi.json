@@ -231,5 +231,6 @@
     "update.latest": "Phiên bản mới nhất",
     "update.changelog": "Có gì mới",
     "update.download": "Tải cập nhật",
-    "update.error": "Không thể kiểm tra cập nhật"
+    "update.error": "Không thể kiểm tra cập nhật",
+    "update.contact": "Liên hệ hỗ trợ"
 }

@@ -133,6 +133,32 @@ class UpdateDialog(QDialog):
         self._download_btn.setVisible(False)
         layout.addWidget(self._download_btn)
 
+        # Contact button
+        contact_btn = QPushButton(
+            f"💬 {self.translator.t('update.contact')}"
+        )
+        contact_btn.setCursor(Qt.PointingHandCursor)
+        contact_btn.setFixedHeight(36)
+        contact_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #60A5FA;
+                border: 1px solid #3B82F6;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 6px 16px;
+            }
+            QPushButton:hover {
+                background: rgba(59, 130, 246, 0.1);
+                border-color: #60A5FA;
+            }
+        """)
+        contact_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://zalo.me/g/newwww890"))
+        )
+        layout.addWidget(contact_btn)
+
     @staticmethod
     def _version_card(title: str, version: str, color: str) -> QWidget:
         card = QWidget()

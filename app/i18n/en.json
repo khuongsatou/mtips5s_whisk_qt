@@ -231,5 +231,6 @@
     "update.latest": "Latest Version",
     "update.changelog": "What's New",
     "update.download": "Download Update",
-    "update.error": "Could not check for updates"
+    "update.error": "Could not check for updates",
+    "update.contact": "Contact Support"
 }
