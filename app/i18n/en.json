@@ -214,5 +214,12 @@
     "prompt_gen.button": "AI Prompt",
     "prompt_gen.template_label": "Custom Prompt Template",
     "prompt_gen.idea_label": "Your Idea",
-    "prompt_gen.idea_placeholder": "Enter your idea here..."
+    "prompt_gen.idea_placeholder": "Enter your idea here...",
+    "prompt_gen.save": "Save",
+    "prompt_gen.saved_title": "Saved Prompts",
+    "prompt_gen.delete_selected": "Delete Selected",
+    "prompt_gen.use_selected": "Use Selected",
+    "prompt_gen.col_template": "Template",
+    "prompt_gen.col_idea": "Idea",
+    "prompt_gen.col_date": "Date"
 }
