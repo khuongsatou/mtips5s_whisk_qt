@@ -95,6 +95,16 @@ The **Project Manager** is responsible for:
 | Single Mode Preload Injection           | ✅ Done | Backend Dev |
 | Ref Image Persistence Fix (from_dict)   | ✅ Done | Backend Dev |
 | Sort Toggle on DONE AT Column           | ✅ Done | UI/UX Dev   |
+| Dashboard Statistics Page               | ✅ Done | UI/UX Dev   |
+| Per-Project Dashboard Stats             | ✅ Done | UI/UX Dev   |
+| Google Credits (Cookie Manager)         | ✅ Done | Backend Dev |
+| Language Switcher Redesign (pill)       | ✅ Done | UI/UX Dev   |
+| Sidebar Logo Redesign + Branding        | ✅ Done | UI/UX Dev   |
+| Preferences Persistence (theme/lang)    | ✅ Done | Backend Dev |
+| Search Input Redesign (pill shape)      | ✅ Done | UI/UX Dev   |
+| Cancel Running Tasks (⏹)                | ✅ Done | UI/UX Dev   |
+| AI Prompt Generator (ChatGPT/Gemini)    | ✅ Done | UI/UX Dev   |
+| Saved Prompts CRUD (local JSON)         | ✅ Done | UI/UX Dev   |
 
 ---
 
@@ -115,31 +125,33 @@ The **Project Manager** is responsible for:
 | File                                                 | Lines | Purpose                                                   |
 | ---------------------------------------------------- | ----- | --------------------------------------------------------- |
 | `requirements.txt`                                   | —     | Dependencies                                              |
-| `main.py`                                            | 97    | App entry point — must launch without errors              |
-| `app/pages/image_creator_page/page_handlers.py`      | 753   | Queue ops, generation, auto-retry, download, auth helpers |
-| `app/pages/image_creator_page/image_creator_page.py` | 180   | Page init, layout, signal wiring                          |
-| `app/pages/image_creator_page/workers.py`            | 277   | GenerationWorker + RefUploadWorker threads                |
+| `main.py`                                            | 113   | App entry point — must launch without errors              |
+| `app/pages/image_creator_page/page_handlers.py`      | 787   | Queue ops, generation, auto-retry, download, auth helpers |
+| `app/pages/image_creator_page/image_creator_page.py` | 185   | Page init, layout, signal wiring                          |
+| `app/pages/image_creator_page/workers.py`            | 278   | GenerationWorker + RefUploadWorker threads                |
 | `app/widgets/task_queue_table/task_queue_table.py`   | 796   | Queue display, sort, AI fix, copy prompts, filters        |
-| `app/widgets/config_panel/build_sections.py`         | 574   | Config panel UI sections (model, prompt, ref, output)     |
-| `app/widgets/config_panel/settings_handlers.py`      | 479   | Config persistence, ref mode, pipeline, retranslation     |
+| `app/widgets/config_panel/build_sections.py`         | 584   | Config panel UI sections (model, prompt, ref, output)     |
+| `app/widgets/config_panel/settings_handlers.py`      | 488   | Config persistence, ref mode, pipeline, retranslation     |
 | `app/api/mock_api/queue_ops.py`                      | 199   | Queue CRUD + checkpoint persistence                       |
 | `app/api/mock_api/resource_ops.py`                   | 390   | Flow, cookie, token resource operations                   |
-| `app/api/workflow_api/workflow_api.py`               | 547   | Whisk image generation + upload API client                |
+| `app/api/workflow_api/workflow_api.py`               | 596   | Whisk image generation + upload API client                |
 | `app/api/models.py`                                  | 456   | Data model definitions (TaskItem, FlowItem, etc.)         |
-| `app/widgets/cookie_manager_dialog.py`               | 416   | Cookie CRUD, test & save flow                             |
-| `app/main_window.py`                                 | 384   | Tab management, menu wiring, theme switching              |
+| `app/widgets/cookie_manager_dialog.py`               | 416   | Cookie CRUD, test & save flow, credit check               |
+| `app/main_window.py`                                 | 417   | Tab management, menu wiring, theme switching              |
 | `app/widgets/project_manager_dialog.py`              | 362   | Project CRUD, activate, cookie integration                |
+| `app/widgets/prompt_generator_dialog.py`             | 337   | AI prompt generator + saved prompts CRUD table            |
 | `app/api/cookie_api.py`                              | 348   | Cookie/API-key REST client                                |
 | `app/pages/settings_page.py`                         | 324   | Settings page                                             |
 | `app/auth/auth_manager.py`                           | 421   | Login, session, token refresh, logout, auto-recovery      |
 | `app/widgets/styled_message_box.py`                  | 245   | Custom modal dialogs replacing QMessageBox                |
 | `app/widgets/reference_image_grid.py`                | 221   | Reference image display grid                              |
 | `app/widgets/login_dialog.py`                        | 212   | Login modal with threaded API call + loading              |
-| `app/widgets/queue_toolbar.py`                       | 208   | Search, status filter, pagination, stats, select errors   |
+| `app/widgets/queue_toolbar.py`                       | 217   | Search, status filter, pagination, stats, cancel running  |
 | `app/api/flow_api.py`                                | 194   | Flow/project REST client                                  |
-| `app/widgets/sidebar.py`                             | 195   | Collapsible sidebar navigation                            |
-| `app/widgets/header.py`                              | 157   | Page title, user info, theme/lang toggles                 |
+| `app/widgets/sidebar.py`                             | 195   | Collapsible sidebar navigation + branding                 |
+| `app/widgets/header.py`                              | 165   | Page title, user info, theme/lang toggles, version        |
 | `app/prompt_normalizer.py`                           | 114   | Prompt sanitization (plain text + JSON)                   |
+| `app/preferences.py`                                 | 49    | Theme/language persistence                                |
 | `app/widgets/toast_notification.py`                  | 77    | Non-blocking auto-dismiss notifications                   |
-| `app/theme/light.qss`                                | 1,517 | Light theme stylesheet                                    |
-| `app/theme/dark.qss`                                 | 1,518 | Dark theme stylesheet                                     |
+| `app/theme/light.qss`                                | 1,695 | Light theme stylesheet                                    |
+| `app/theme/dark.qss`                                 | 1,696 | Dark theme stylesheet                                     |

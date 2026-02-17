@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QFontDatabase
 
 from app.utils import resource_path
+from app.version import __version__
 
 
 def create_app(argv=None) -> QApplication:
@@ -24,7 +25,7 @@ def create_app(argv=None) -> QApplication:
         argv = sys.argv
     app = QApplication(argv)
     app.setApplicationName("Whisk Desktop")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("Whisk")
 
     # Load bundled Roboto font

@@ -1,28 +1,27 @@
-# 📋 Current Task
+# 📋 Current Task Status
 
-> **Owner**: 📋 Project Manager (`project-manager/SKILL.md`)
+> **Updated:** 2026-02-17 19:19 (UTC+7)
 
-**Status**: ✅ idle
-**Updated**: 2026-02-17
-**Iteration**: #5
+## ✅ Just Completed
 
----
+1. **AI Prompt Generator Dialog** — Modal with custom template + user idea + ChatGPT/Gemini buttons
+2. **CRUD Saved Prompts Table** — Persistent saved prompts with full CRUD, stored in `~/.whisk_saved_prompts.json`
+3. **Cancel Running Tasks (⏹)** — Button to stop worker and mark running tasks as error
+4. **Search Input Redesign** — Pill-shaped search input and status filter with focus animation
+5. **Sidebar Logo Redesign** — Prominent logo, branding label, YouTube link
+6. **Language Switcher Redesign** — Toggle pill buttons replacing QComboBox
+7. **Google Credits in Cookie Manager** — Async credit check with loading indicators
+8. **Preferences Persistence** — Theme and language saved to `~/.whisk_preferences.json`
+9. **Table Selection Fix** — Purple highlight with white text for visibility
 
-## Active Task
+## 🎯 No Active Task
 
-QA test coverage improvement completed — 133 new tests added, total coverage 75%→82%.
+All requested features have been implemented and committed. Awaiting next user request.
 
-## Backlog — Chưa Hoàn Thành
+## 📊 Backlog
 
-| Priority | Task                      | Owner          | Status         | Ghi chú                              |
-| -------- | ------------------------- | -------------- | -------------- | ------------------------------------ |
-| P2       | Batch prompt processing   | ⚙️ Backend Dev | ⬜ Not Started | Xử lý hàng loạt prompt từ file ngoài |
-| P2       | Keyboard navigation audit | 🎨 UI/UX Dev   | ⬜ Not Started | Tab/Enter/Esc cho toàn bộ UI         |
-| P2       | Coverage → 90%            | 🧪 QA Engineer | ⬜ Not Started | Hiện tại 82%, cần thêm tests         |
-| P3       | Export/import profiles    | ⚙️ Backend Dev | ⬜ Not Started | Xuất/nhập cấu hình giữa các máy      |
-| P3       | Windows build (.exe)      | 🚀 DevOps      | ⬜ Not Started | Cross-compile hoặc CI/CD cho Windows |
-| P3       | Dashboard statistics page | 🎨 UI/UX Dev   | ⬜ Not Started | Thống kê số lượng ảnh đã tạo         |
-
-## Blockers
-
-_None._
+| Priority | Feature                      | Status      |
+| -------- | ---------------------------- | ----------- |
+| Low      | Batch export to CSV/Excel    | Not started |
+| Low      | Keyboard shortcuts           | Not started |
+| Low      | Drag-and-drop prompt reorder | Not started |

@@ -1,192 +1,113 @@
-# 📊 Báo Cáo Tiến Độ Dự Án — Whisk Desktop
+# 📊 Whisk Desktop — Progress Report
 
-> **Ngày**: 2026-02-17 17:12 | **Phiên bản**: PySide6 6.9.3 | **Python**: 3.12.8
-
----
-
-## 🎯 Tổng Quan
-
-Whisk Desktop là ứng dụng desktop tạo ảnh AI tích hợp Google Labs Whisk, với hệ thống queue quản lý batch generation, multi-project tabs, và giao diện hiện đại light/dark theme.
-
-| Metric          | Giá trị            |
-| --------------- | ------------------ |
-| **App Code**    | 10,974 dòng Python |
-| **Test Code**   | 5,596 dòng Python  |
-| **Theme (QSS)** | 3,035 dòng         |
-| **i18n (JSON)** | 394 dòng           |
-| **Total Tests** | **650 ✅ passed**  |
-| **Features**    | **90 hoàn thành**  |
-| **Build**       | macOS .app + DMG   |
+> **Date:** 2026-02-17 19:19 (UTC+7)
+> **Reported by:** Project Manager
 
 ---
 
-## ✅ Tính Năng Đã Hoàn Thành (90)
+## 📈 Project Metrics
 
-### 🎨 UI/UX (28 features)
-
-| #   | Feature                            | Trạng thái |
-| --- | ---------------------------------- | ---------- |
-| 1   | Theme Engine (light/dark)          | ✅         |
-| 2   | Config Panel (model/quality/ratio) | ✅         |
-| 3   | Dynamic Reference Slots (1-5)      | ✅         |
-| 4   | Task Queue Table                   | ✅         |
-| 5   | Reference Image Grid (3-column)    | ✅         |
-| 6   | Animated Progress Bars             | ✅         |
-| 7   | Config Persistence (QSettings)     | ✅         |
-| 8   | Clear/Reset Config                 | ✅         |
-| 9   | Output Thumbnails (adaptive grid)  | ✅         |
-| 10  | Sidebar (collapsible)              | ✅         |
-| 11  | Header (toggles, user info)        | ✅         |
-| 12  | Project Manager Dialog             | ✅         |
-| 13  | Real-time Progress Tracking        | ✅         |
-| 14  | Image Preview Modal + Download     | ✅         |
-| 15  | Styled Message Box (custom dialog) | ✅         |
-| 16  | Error Message Column               | ✅         |
-| 17  | Cookie from Project Dialog         | ✅         |
-| 18  | Lightweight Progress Updates       | ✅         |
-| 19  | Scroll Position Preservation       | ✅         |
-| 20  | Download All Button                | ✅         |
-| 21  | Add-to-Queue State Management      | ✅         |
-| 22  | Threaded Login with Loading        | ✅         |
-| 23  | Disabled Button Styling            | ✅         |
-| 24  | Chrome-style Project Tabs          | ✅         |
-| 25  | Folder Button in Progress Column   | ✅         |
-| 26  | Image Preview in Queue             | ✅         |
-| 27  | Ref Mode Toggle Buttons (UI)       | ✅         |
-| 28  | Sort Toggle on DONE AT Column      | ✅ ⭐      |
-
-### ⚙️ Backend (34 features)
-
-| #   | Feature                          | Trạng thái |
-| --- | -------------------------------- | ---------- |
-| 1   | Auth System (login/session)      | ✅         |
-| 2   | Mock API (TaskItem model)        | ✅         |
-| 3   | Cookie/Token Manager             | ✅         |
-| 4   | Real API Integration             | ✅         |
-| 5   | Background Image Generation      | ✅         |
-| 6   | Concurrent Generation (threads)  | ✅         |
-| 7   | Queue Checkpoint (save/load)     | ✅         |
-| 8   | Split Base URLs (admin/labs)     | ✅         |
-| 9   | Prompt Normalizer (text/JSON)    | ✅         |
-| 10  | Per-Task Timeout (60s)           | ✅         |
-| 11  | Re-run Completed Tasks           | ✅         |
-| 12  | Project-based Save Paths         | ✅         |
-| 13  | Workflow API Client              | ✅         |
-| 14  | Cookie API Client                | ✅         |
-| 15  | Flow API Client                  | ✅         |
-| 16  | API Config (env-based)           | ✅         |
-| 17  | Workflow Persistence (QSettings) | ✅         |
-| 18  | Per-Project Queue Isolation      | ✅         |
-| 19  | Cookie Expiration Validation     | ✅         |
-| 20  | Flow Name in Save Paths          | ✅         |
-| 21  | Delete Flow Endpoint             | ✅         |
-| 22  | Delete API Key Endpoint          | ✅         |
-| 23  | Auto Add to Queue                | ✅         |
-| 24  | Run All Generation               | ✅         |
-| 25  | Stuck Task Cleanup (on reload)   | ✅         |
-| 26  | Max 300 Prompt Validation        | ✅         |
-| 27  | Completion Timestamp Persistence | ✅         |
-| 28  | Crash Fix (deleteLater race)     | ✅         |
-| 29  | Background Ref Upload (QThread)  | ✅         |
-| 30  | Token Refresh + Server Logout    | ✅ ⭐      |
-| 31  | Auto-Recovery Login Cascade      | ✅ ⭐      |
-| 32  | Dynamic Timeout Budget (60s)     | ✅ ⭐      |
-| 33  | Single Mode Preload Injection    | ✅ ⭐      |
-| 34  | Ref Image Persistence Fix        | ✅ ⭐      |
-
-### 🌐 i18n (2 features)
-
-| #   | Feature                | Trạng thái |
-| --- | ---------------------- | ---------- |
-| 1   | i18n System (en/vi)    | ✅         |
-| 2   | Translation Management | ✅         |
-
-### 🔧 DevOps (7 features)
-
-| #   | Feature                           | Trạng thái |
-| --- | --------------------------------- | ---------- |
-| 1   | Cross-Platform Build (macOS .app) | ✅         |
-| 2   | Emoji Log Messages                | ✅         |
-| 3   | Environment Configuration         | ✅         |
-| 4   | Universal Binary (x86_64 + arm64) | ✅         |
-| 5   | DMG Installer                     | ✅         |
-| 6   | Native Mach-O Launcher            | ✅         |
-| 7   | File Splitting Rule (>500 lines)  | ✅         |
-
-### 🔍 QA (19 features)
-
-| #   | Feature                                 | Trạng thái |
-| --- | --------------------------------------- | ---------- |
-| 1   | Timeout Countdown (⏱ elapsed)           | ✅         |
-| 2   | Auto-Retry Failed Tasks                 | ✅         |
-| 3   | Prompt Search Filter                    | ✅         |
-| 4   | Status Filter (toolbar)                 | ✅         |
-| 5   | Toast Notifications (batch done)        | ✅         |
-| 6   | Select All Errors (⚠️ button)           | ✅         |
-| 7   | Task Count Statistics (toolbar)         | ✅         |
-| 8   | Prompt Count (config panel)             | ✅         |
-| 9   | AI Fix Buttons (GPT/Gemini)             | ✅         |
-| 10  | Copy All Prompts (header click)         | ✅         |
-| 11  | Completion Timestamp Column             | ✅         |
-| 12  | Sort by Newest Completed                | ✅         |
-| 13  | Per-Category Get ID (title/scene/style) | ✅         |
-| 14  | Queue Table Pagination                  | ✅         |
-| 15  | Upload Progress Feedback                | ✅         |
-| 16  | Prompt Edit Persistence                 | ✅         |
-| 17  | Save Button for Images                  | ✅         |
-| 18  | Fix Save Path with Project Name         | ✅         |
-| 19  | Fix Output Image Display                | ✅         |
+| Metric             | Value                              |
+| ------------------ | ---------------------------------- |
+| **Source Files**   | 59 Python modules                  |
+| **Source Lines**   | 11,889 lines                       |
+| **Test Files**     | 34 test modules                    |
+| **Test Lines**     | 7,189 lines                        |
+| **Total Tests**    | 798 ✅ all passing                 |
+| **QSS Themes**     | 1,695 (light) + 1,696 (dark) lines |
+| **i18n Keys**      | ~225 per language (en, vi)         |
+| **Total Features** | 104 completed                      |
 
 ---
 
-## ⭐ Thay Đổi Mới Nhất (2026-02-17)
-
-| #   | Thay đổi                      | Mô tả                                                      |
-| --- | ----------------------------- | ---------------------------------------------------------- |
-| 1   | **Token Refresh + Logout**    | Refresh access_token via refresh_token, server-side logout |
-| 2   | **Auto-Recovery Cascade**     | 3-step: refresh_token → key_code → login dialog            |
-| 3   | **Dynamic Timeout Budget**    | HTTP timeout = remaining TASK_TIMEOUT (always ≤60s total)  |
-| 4   | **Single Mode Preload**       | Skip re-upload khi ref images đã có mediaGenerationId      |
-| 5   | **Ref Image Persistence Fix** | Fix TaskItem.from_dict() thiếu reference_images_by_cat     |
-| 6   | **Sort Toggle on DONE AT**    | Click header 🔽/🔼 để sort newest/oldest completed         |
-| 7   | **File Splitting**            | 5 file lớn → packages (image_creator, config_panel, etc.)  |
-
----
-
-## 🏗️ Kiến Trúc Hiện Tại
+## 🏗️ Architecture Overview
 
 ```
-whisk_pro/
-├── main.py                          # Entry point
+whisk_desktop/
+├── main.py                          # Entry point (113 lines)
 ├── app/
-│   ├── app.py                       # QApplication setup
-│   ├── main_window.py               # Multi-tab window management
-│   ├── auth/                        # Login, session, token refresh, auto-recovery
+│   ├── main_window.py               # Tab management, menus (417 lines)
+│   ├── preferences.py               # Theme/lang persistence (49 lines)
+│   ├── prompt_normalizer.py          # Prompt sanitization (114 lines)
+│   ├── auth/auth_manager.py          # Login, session, refresh (421 lines)
 │   ├── api/
-│   │   ├── models.py                # TaskItem, FlowItem, ApiResponse
-│   │   ├── mock_api/                # Mock API (queue_ops, resource_ops, sample_data)
-│   │   ├── workflow_api/            # Whisk image generation + upload
-│   │   ├── cookie_api.py            # Cookie/API-key REST client
-│   │   └── flow_api.py              # Flow/project REST client
-│   ├── i18n/                        # Translations (en.json, vi.json)
+│   │   ├── workflow_api/             # Whisk image generation API (596 lines)
+│   │   ├── cookie_api.py             # Cookie REST client (348 lines)
+│   │   ├── flow_api.py               # Flow/project REST client (194 lines)
+│   │   └── mock_api/                 # Local queue CRUD + checkpoint
 │   ├── pages/
-│   │   └── image_creator_page/      # Page, handlers, workers (split package)
-│   ├── theme/                       # ThemeManager + light.qss/dark.qss
-│   └── widgets/
-│       ├── config_panel/            # Build sections, settings handlers (split)
-│       ├── task_queue_table/         # Table + helpers (split)
-│       └── ...                      # sidebar, header, toolbar, dialogs
-└── tests/                           # 650 pytest tests
+│   │   ├── image_creator_page/       # Main generation page
+│   │   │   ├── page_handlers.py      # Queue ops, generation (787 lines)
+│   │   │   ├── image_creator_page.py # Layout, signals (185 lines)
+│   │   │   └── workers.py            # Thread pool workers (278 lines)
+│   │   └── settings_page.py          # Settings page (324 lines)
+│   ├── widgets/
+│   │   ├── task_queue_table/         # Queue display, sort, AI fix (796 lines)
+│   │   ├── config_panel/            # Config UI + handlers (1,072 lines)
+│   │   ├── queue_toolbar.py          # Search, filters, pagination (217 lines)
+│   │   ├── prompt_generator_dialog.py # AI prompt generator + CRUD table (337 lines)
+│   │   ├── cookie_manager_dialog.py  # Cookie CRUD (416 lines)
+│   │   ├── project_manager_dialog.py # Project CRUD (362 lines)
+│   │   ├── sidebar.py               # Collapsible nav (195 lines)
+│   │   └── header.py                # Title, toggles (157 lines)
+│   ├── theme/
+│   │   ├── light.qss                # Light theme (1,695 lines)
+│   │   ├── dark.qss                 # Dark theme (1,696 lines)
+│   │   └── theme_manager.py         # Theme switching
+│   └── i18n/
+│       ├── en.json                   # English translations
+│       ├── vi.json                   # Vietnamese translations
+│       └── translator.py             # i18n engine
+└── tests/                            # 34 test modules, 798 tests
 ```
 
 ---
 
-## 🚧 Rủi Ro & Lưu Ý
+## 🚀 Recent Session Activity (Today)
 
-| Rủi ro                    | Mức độ | Ghi chú                        |
-| ------------------------- | ------ | ------------------------------ |
-| HD/Ultra quality disabled | 🟢 Low | Tính năng chưa sẵn sàng từ API |
+| #   | Commit    | Feature                                              |
+| --- | --------- | ---------------------------------------------------- |
+| 1   | `e2abf4e` | Fix table selection contrast in prompt generator     |
+| 2   | `c0efd4c` | Add CRUD saved prompts table to AI Prompt Generator  |
+| 3   | `7c79139` | Add AI Prompt Generator dialog (ChatGPT + Gemini)    |
+| 4   | `1d00bac` | Add cancel running tasks button (⏹)                  |
+| 5   | `5ce6268` | Redesign search input and status filter (pill shape) |
+| 6   | `81850c2` | Persist theme and language preferences               |
+| 7   | `793d567` | Move version label from sidebar to header            |
+| 8   | `d2610cd` | Fix branding label on sidebar collapse               |
+| 9   | `238b33a` | Add branding + YouTube link on logo click            |
+| 10  | `e22044b` | Redesign sidebar logo area                           |
+| 11  | `d8d9b8d` | Redesign language switcher as toggle pills           |
+| 12  | `ff2fa6a` | Add Credits column to cookie manager                 |
+| 13  | `b053a0a` | Move credit check to cookie manager dialog           |
+| 14  | `93091f0` | Display Google Labs credits in header                |
+| 15  | `05ab24a` | Add per-project stats to dashboard                   |
 
 ---
 
-> **Tổng kết**: Dự án ổn định với **650 tests passed, 90 features hoàn thành**. Auth system hoàn chỉnh với auto-recovery cascade. Cấu trúc code đã được split thành packages cho maintainability.
+## ✅ Quality Status
+
+| Check           | Result                   |
+| --------------- | ------------------------ |
+| **Unit Tests**  | 798/798 PASSED ✅        |
+| **App Launch**  | Clean startup ✅         |
+| **Dark Theme**  | Default, fully styled ✅ |
+| **Light Theme** | Fully styled ✅          |
+| **Vietnamese**  | Default language ✅      |
+| **English**     | Fully translated ✅      |
+
+---
+
+## 🔮 Feature Backlog (Potential)
+
+- [ ] Real-time credit display refresh
+- [ ] Batch export results to CSV/Excel
+- [ ] Keyboard shortcuts (Ctrl+Enter to run)
+- [ ] Drag-and-drop prompt reordering
+- [ ] Multi-project concurrent generation
+
+---
+
+## 📌 Current Blockers
+
+**None** — all features are functional and tests are passing.

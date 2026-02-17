@@ -221,5 +221,15 @@
     "prompt_gen.use_selected": "Use Selected",
     "prompt_gen.col_template": "Template",
     "prompt_gen.col_idea": "Idea",
-    "prompt_gen.col_date": "Date"
+    "prompt_gen.col_date": "Date",
+
+    "update.title": "Software Update",
+    "update.checking": "Checking for updates...",
+    "update.up_to_date": "You're up to date!",
+    "update.available": "Update Available!",
+    "update.current": "Current Version",
+    "update.latest": "Latest Version",
+    "update.changelog": "What's New",
+    "update.download": "Download Update",
+    "update.error": "Could not check for updates"
 }

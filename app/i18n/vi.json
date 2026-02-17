@@ -221,5 +221,15 @@
     "prompt_gen.use_selected": "Dùng mục đã chọn",
     "prompt_gen.col_template": "Mẫu Prompt",
     "prompt_gen.col_idea": "Ý Tưởng",
-    "prompt_gen.col_date": "Ngày"
+    "prompt_gen.col_date": "Ngày",
+
+    "update.title": "Cập Nhật Phần Mềm",
+    "update.checking": "Đang kiểm tra cập nhật...",
+    "update.up_to_date": "Bạn đang dùng phiên bản mới nhất!",
+    "update.available": "Có phiên bản mới!",
+    "update.current": "Phiên bản hiện tại",
+    "update.latest": "Phiên bản mới nhất",
+    "update.changelog": "Có gì mới",
+    "update.download": "Tải cập nhật",
+    "update.error": "Không thể kiểm tra cập nhật"
 }

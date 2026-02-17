@@ -115,11 +115,28 @@ class Header(QWidget):
 
         layout.addWidget(lang_container)
 
-        # Version label (far right)
-        self._version_label = QLabel(self.translator.t("app.version"))
-        self._version_label.setObjectName("header_version_label")
-        self._version_label.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
-        layout.addWidget(self._version_label)
+        # Version button (far right — clickable to check updates)
+        self._version_btn = QPushButton(self.translator.t("app.version"))
+        self._version_btn.setObjectName("header_version_btn")
+        self._version_btn.setCursor(Qt.PointingHandCursor)
+        self._version_btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        self._version_btn.setToolTip(self.translator.t("update.title"))
+        self._version_btn.setStyleSheet("""
+            QPushButton#header_version_btn {
+                background: transparent;
+                border: 1px solid #374151;
+                border-radius: 6px;
+                color: #9CA3AF;
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+            QPushButton#header_version_btn:hover {
+                border-color: #8B5CF6;
+                color: #C4B5FD;
+            }
+        """)
+        self._version_btn.clicked.connect(self._on_version_clicked)
+        layout.addWidget(self._version_btn)
 
     def _theme_label(self) -> str:
         """Get the theme toggle button label."""
@@ -140,6 +157,12 @@ class Header(QWidget):
         for lc, btn in self._lang_flags.items():
             btn.setChecked(lc == lang_code)
 
+    def _on_version_clicked(self):
+        """Open the software update dialog."""
+        from app.widgets.update_dialog import UpdateDialog
+        dlg = UpdateDialog(self.translator, parent=self)
+        dlg.exec()
+
     def set_page_title(self, title: str):
         """Update the page title in the header."""
         self._page_title.setText(title)
@@ -157,7 +180,8 @@ class Header(QWidget):
         # Sync language button states
         for lc, btn in self._lang_flags.items():
             btn.setChecked(lc == self.translator.current_language)
-        self._version_label.setText(self.translator.t("app.version"))
+        self._version_btn.setText(self.translator.t("app.version"))
+        self._version_btn.setToolTip(self.translator.t("update.title"))
 
     def set_active_project_name(self, name: str):
         """Update the active project label in the header."""
