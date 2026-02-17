@@ -24,11 +24,12 @@ class CookieManagerDialog(QDialog):
 
     cookies_changed = Signal()  # Emitted when cookies are added/deleted
 
-    def __init__(self, api, translator, parent=None, cookie_api=None, active_flow_id=None):
+    def __init__(self, api, translator, parent=None, cookie_api=None, active_flow_id=None, workflow_api=None):
         super().__init__(parent)
         self.api = api
         self.translator = translator
         self.cookie_api = cookie_api
+        self.workflow_api = workflow_api
         self._active_flow_id = int(active_flow_id) if active_flow_id else None
         self.setObjectName("cookie_manager_dialog")
         self.setWindowTitle(self.translator.t("cookie.title"))
@@ -114,7 +115,7 @@ class CookieManagerDialog(QDialog):
         header.setSectionResizeMode(3, QHeaderView.Fixed)
         self._table.setColumnWidth(3, 90)
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self._table.setColumnWidth(4, 120)
+        self._table.setColumnWidth(4, 160)
 
         layout.addWidget(self._table, 1)
 
@@ -258,6 +259,16 @@ class CookieManagerDialog(QDialog):
                 lambda checked, cid=cookie_id, btn=refresh_btn: self._on_refresh_cookie(cid, btn)
             )
             action_layout.addWidget(refresh_btn)
+
+            credit_btn = QPushButton("💎")
+            credit_btn.setObjectName("cookie_action_btn")
+            credit_btn.setFixedSize(28, 28)
+            credit_btn.setCursor(QCursor(Qt.PointingHandCursor))
+            credit_btn.setToolTip("Check Google Labs credits")
+            credit_btn.clicked.connect(
+                lambda checked, cid=cookie_id, btn=credit_btn: self._on_check_credit(cid, btn)
+            )
+            action_layout.addWidget(credit_btn)
 
             del_btn = QPushButton("🗑️")
             del_btn.setObjectName("cookie_action_btn")
@@ -403,6 +414,60 @@ class CookieManagerDialog(QDialog):
             self.api.delete_cookie(cookie_id)
         self._load_cookies()
         self.cookies_changed.emit()
+
+    # ── Check credit ──────────────────────────────────────────────
+
+    def _on_check_credit(self, cookie_id: str, btn: QPushButton):
+        """Fetch Google Labs credits for a specific cookie."""
+        if not self.cookie_api or not self.workflow_api:
+            self._show_status("⚠️ Workflow API not available", error=True)
+            return
+
+        btn.setEnabled(False)
+        btn.setText("⏳")
+        self._show_status("🔄 Checking credits...", error=False)
+
+        try:
+            # Get the access token from this cookie
+            resp = self.cookie_api.get_api_keys(
+                flow_id=self._active_flow_id,
+                provider=PROVIDER,
+                status="active",
+            )
+            if not resp.success or not resp.data:
+                self._show_status("❌ No active cookies found", error=True)
+                return
+
+            # Find the matching cookie by id
+            token = ""
+            for item in resp.data.get("items", []):
+                if str(item.get("id", "")) == cookie_id:
+                    token = item.get("value", "")
+                    break
+
+            if not token:
+                self._show_status("❌ Cookie token not found", error=True)
+                return
+
+            credit_resp = self.workflow_api.get_credit_status(token)
+            if credit_resp.success and credit_resp.data:
+                credits = credit_resp.data.get("credits", 0)
+                tier = credit_resp.data.get("userPaygateTier", "")
+                self._show_status(
+                    f"💎 Credits: {credits:,}  │  Tier: {tier}",
+                    error=False,
+                )
+            else:
+                self._show_status(
+                    f"❌ Credit check failed: {credit_resp.message}",
+                    error=True,
+                )
+        except Exception as e:
+            self._show_status(f"❌ Error: {e}", error=True)
+            logger.error(f"check_credit exception: {e}")
+        finally:
+            btn.setEnabled(True)
+            btn.setText("💎")
 
     # ── Helpers ───────────────────────────────────────────────────────
 
