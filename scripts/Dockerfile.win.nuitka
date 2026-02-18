@@ -46,13 +46,13 @@ RUN bash -c '\
     --include-data-dir=app/assets=app/assets \
     --include-package=app \
     --windows-console-mode=disable \
-    --output-filename=WhiskDesktop.exe \
+    --output-filename=Veo3DeskTop.exe \
     --output-dir=dist \
     --assume-yes-for-downloads \
     main.py && \
     \
     echo "Copying PySide6 + shiboken6 into dist..." && \
-    DIST_DIR=$(ls -d dist/main.dist 2>/dev/null || echo "dist/WhiskDesktop.dist") && \
+    DIST_DIR=$(ls -d dist/main.dist 2>/dev/null || echo "dist/Veo3DeskTop.dist") && \
     cp -r "$SITE/PySide6" "$DIST_DIR/" && \
     cp -r "$SITE/shiboken6" "$DIST_DIR/" && \
     echo "Done copying Qt libraries" \

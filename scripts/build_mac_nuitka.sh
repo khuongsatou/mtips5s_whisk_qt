@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "🔨 Building WhiskDesktop.app with Nuitka (native compilation)..."
+echo "🔨 Building Veo3DeskTop.app with Nuitka (native compilation)..."
 echo "================================================================="
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_NAME="Whisk Desktop"
-BUNDLE_ID="com.1nutnhanwhisk.desktop"
+BUNDLE_ID="com.1nutnhanveo3.desktop"
 VERSION="1.0.0"
 
 DIST_DIR="$PROJECT_DIR/dist"
@@ -50,7 +50,7 @@ $PYTHON -m nuitka \
     --include-data-dir="$PROJECT_DIR/app/assets=app/assets" \
     --include-package=app \
     --output-dir="$DIST_DIR" \
-    --output-filename="WhiskDesktop" \
+    --output-filename="Veo3DeskTop" \
     --remove-output \
     --assume-yes-for-downloads \
     "$PROJECT_DIR/main.py"
@@ -79,15 +79,15 @@ rm -rf "$DMG_STAGING"
 mkdir -p "$DMG_STAGING"
 cp -R "$APP_DIR" "$DMG_STAGING/"
 ln -sf /Applications "$DMG_STAGING/Applications"
-hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DIST_DIR/WhiskDesktop.dmg"
+hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DIST_DIR/Veo3DeskTop.dmg"
 rm -rf "$DMG_STAGING"
 
 echo ""
 echo "✅ Nuitka build complete!"
 echo "📍 App:  $APP_DIR ($(du -sh "$APP_DIR" | cut -f1))"
-echo "💿 DMG:  $DIST_DIR/WhiskDesktop.dmg ($(du -sh "$DIST_DIR/WhiskDesktop.dmg" | cut -f1))"
+echo "💿 DMG:  $DIST_DIR/Veo3DeskTop.dmg ($(du -sh "$DIST_DIR/Veo3DeskTop.dmg" | cut -f1))"
 echo ""
 echo "🛡️  All Python code compiled to native C — cannot be decompiled!"
 echo ""
-echo "To install: open dist/WhiskDesktop.dmg → drag to Applications"
+echo "To install: open dist/Veo3DeskTop.dmg → drag to Applications"
 echo "To run:     open 'dist/$APP_NAME.app'"

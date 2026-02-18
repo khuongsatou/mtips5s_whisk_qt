@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
         self.flow_api = flow_api
         self.cookie_api = cookie_api
         self.workflow_api = workflow_api
+        self._captcha_bridge = None  # CaptchaBridgeServer instance
+        self._captcha_sidecar = None  # CaptchaSidecarManager instance
 
         # Per-tab data: list of {flow_id, flow_name, page}
         self._project_tabs: list[dict] = []
@@ -56,6 +58,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self._apply_theme()
         self._sidebar._apply_collapse_state()
+        self._restore_captcha_mode()
 
     def _setup_ui(self):
         """Build: Sidebar | (Header + TabBar + Content)."""
@@ -112,6 +115,7 @@ class MainWindow(QMainWindow):
         self._header.cookies_clicked.connect(self._on_cookies_clicked)
         self._header.projects_clicked.connect(self._on_projects_clicked)
         self._header.tokens_clicked.connect(self._on_tokens_clicked)
+        self._header.captcha_mode_changed.connect(self._on_captcha_mode_change)
         self._sidebar.logout_clicked.connect(self._on_logout)
         self._settings.theme_change_requested.connect(self._on_theme_set)
         self._settings.language_change_requested.connect(self._on_language_change)
@@ -271,11 +275,17 @@ class MainWindow(QMainWindow):
         idx = self._tab_bar.active_index()
         if 0 <= idx < len(self._project_tabs):
             tab = self._project_tabs[idx]
-            self._header.set_active_project_name(tab["flow_name"])
+            flow_name = tab["flow_name"]
+            self._header.set_active_project_name(flow_name)
             self._header.set_cookie_btn_visible(True)
+            # Update captcha bridge project name
+            if self._captcha_bridge and self._captcha_bridge.isRunning():
+                self._captcha_bridge.set_project_name(flow_name)
         else:
             self._header.set_active_project_name("")
             self._header.set_cookie_btn_visible(False)
+            if self._captcha_bridge and self._captcha_bridge.isRunning():
+                self._captcha_bridge.set_project_name("")
 
     def _get_active_flow_id(self) -> str | None:
         """Get flow_id of the currently active tab."""
@@ -330,7 +340,7 @@ class MainWindow(QMainWindow):
         # No saved tabs → fetch from server
         if not loaded and self.flow_api:
             try:
-                resp = self.flow_api.get_flows(flow_type="WHISK")
+                resp = self.flow_api.get_flows(flow_type="VEO3_V2")
                 if resp.success and resp.data:
                     items = resp.data.get("items", [])
                     if items:
@@ -370,6 +380,81 @@ class MainWindow(QMainWindow):
         self.translator.set_language(lang_code)
         from app.preferences import save_preference
         save_preference("language", lang_code)
+
+    def _on_captcha_mode_change(self, mode: str):
+        from app.preferences import save_preference
+        save_preference("captcha_mode", mode)
+        logger.info(f"🔐 Captcha mode changed to: {mode}")
+        if mode == "extension":
+            self._stop_captcha_sidecar()
+            self._start_captcha_bridge()
+        else:
+            self._stop_captcha_bridge()
+            self._start_captcha_sidecar()
+
+    def _restore_captcha_mode(self):
+        """Restore captcha mode from preferences on startup."""
+        from app.preferences import load_preferences
+        prefs = load_preferences()
+        mode = prefs.get("captcha_mode", "puppeteer")
+        self._header.set_captcha_mode(mode)
+        if mode == "extension":
+            self._start_captcha_bridge()
+        else:
+            self._start_captcha_sidecar()
+
+    def _start_captcha_bridge(self):
+        """Start the captcha bridge HTTP server for extension mode."""
+        if self._captcha_bridge and self._captcha_bridge.isRunning():
+            return  # Already running
+        from app.captcha_bridge_server import CaptchaBridgeServer
+        self._captcha_bridge = CaptchaBridgeServer(parent=self)
+        self._captcha_bridge.server_started.connect(
+            lambda port: logger.info(f"🔐 Captcha bridge listening on port {port}")
+        )
+        self._captcha_bridge.server_error.connect(
+            lambda err: logger.error(f"🔐 Captcha bridge error: {err}")
+        )
+        self._captcha_bridge.token_received.connect(
+            lambda tokens, action: logger.info(
+                f"🔐 Got {len(tokens)} token(s) from extension (action={action})"
+            )
+        )
+        self._captcha_bridge.start()
+
+    def _stop_captcha_bridge(self):
+        """Stop the captcha bridge HTTP server."""
+        if self._captcha_bridge:
+            self._captcha_bridge.stop()
+            self._captcha_bridge = None
+
+    def _start_captcha_sidecar(self):
+        """Start the Puppeteer captcha sidecar subprocess."""
+        if self._captcha_sidecar and self._captcha_sidecar.isRunning():
+            return  # Already running
+        from app.captcha_sidecar_manager import CaptchaSidecarManager
+        self._captcha_sidecar = CaptchaSidecarManager(parent=self)
+        self._captcha_sidecar.sidecar_ready.connect(
+            lambda: logger.info("🔐 Puppeteer sidecar is READY")
+        )
+        self._captcha_sidecar.sidecar_error.connect(
+            lambda err: logger.error(f"🔐 Sidecar error: {err}")
+        )
+        self._captcha_sidecar.token_received.connect(
+            lambda tokens, action: logger.info(
+                f"🔐 Got {len(tokens)} token(s) from sidecar (action={action})"
+            )
+        )
+        self._captcha_sidecar.sidecar_stopped.connect(
+            lambda: logger.info("🔐 Puppeteer sidecar stopped")
+        )
+        self._captcha_sidecar.start()
+
+    def _stop_captcha_sidecar(self):
+        """Stop the Puppeteer captcha sidecar."""
+        if self._captcha_sidecar:
+            self._captcha_sidecar.stop()
+            self._captcha_sidecar = None
 
     def _on_language_applied(self, lang_code: str):
         self.setWindowTitle(self.translator.t("app.title"))
@@ -413,5 +498,13 @@ class MainWindow(QMainWindow):
         """Handle logout: clear session and restart app."""
         if self.auth_manager:
             self.auth_manager.logout()
+        self._stop_captcha_bridge()
+        self._stop_captcha_sidecar()
         from PySide6.QtWidgets import QApplication
         QApplication.instance().exit(42)
+
+    def closeEvent(self, event):
+        """Clean up captcha providers on window close."""
+        self._stop_captcha_bridge()
+        self._stop_captcha_sidecar()
+        super().closeEvent(event)

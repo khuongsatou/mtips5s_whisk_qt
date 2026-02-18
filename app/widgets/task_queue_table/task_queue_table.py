@@ -29,6 +29,7 @@ class TaskQueueTable(QTableWidget):
     ref_images_changed = Signal(str, list)  # task_id, new paths
     download_clicked = Signal(str)   # task_id
     open_folder_clicked = Signal(str)  # task_id
+    refresh_clicked = Signal(str)    # task_id — manual status check
     prompt_edited = Signal(str, str)  # task_id, new_prompt
     page_changed = Signal(int, int)  # current_page (1-based), total_pages
     stats_changed = Signal(int, int, int)  # completed, errors, total
@@ -36,7 +37,7 @@ class TaskQueueTable(QTableWidget):
     COLUMNS = [
         ("", 40),           # Checkbox
         ("STT", 55),        # Row number
-        ("Task", 140),      # Task name + model + ratio
+        ("Task", 180),      # Task name + model + ratio + gen mode
         ("ref_images", 420),  # Reference images grid (Title/Scene/Style)
         ("Prompt", -1),     # Prompt text (stretch)
         ("output", 200),    # Output thumbnails
@@ -201,7 +202,18 @@ class TaskQueueTable(QTableWidget):
         if self._status_filter:
             tasks = [t for t in tasks if t.get("status") == self._status_filter]
         if self._search_text:
-            tasks = [t for t in tasks if self._search_text in t.get("prompt", "").lower()]
+            def _matches(t: dict) -> bool:
+                """Check if task matches search text across multiple fields."""
+                q = self._search_text
+                return (
+                    q in t.get("prompt", "").lower()
+                    or q in t.get("id", "").lower()
+                    or q in t.get("status", "").lower()
+                    or q in str(t.get("seed", "")).lower()
+                    or q in t.get("error_message", "").lower()
+                    or q in t.get("operation_name", "").lower()
+                )
+            tasks = [t for t in tasks if _matches(t)]
         return tasks
 
     def _render_page(self):
@@ -352,21 +364,60 @@ class TaskQueueTable(QTableWidget):
         stt_item.setFlags(stt_item.flags() & ~Qt.ItemIsEditable)
         self.setItem(row, 1, stt_item)
 
-        # Col 2: Task (name + model + ratio)
+        # Col 2: Task (name + model + ratio + gen mode)
         task_cell = QWidget()
         task_layout = QVBoxLayout(task_cell)
-        task_layout.setContentsMargins(8, 8, 8, 8)
-        task_layout.setSpacing(3)
+        task_layout.setContentsMargins(6, 6, 6, 6)
+        task_layout.setSpacing(2)
 
         task_name = QLabel(task.get("task_name", ""))
         task_name.setObjectName("task_name_label")
         task_name.setWordWrap(True)
         task_layout.addWidget(task_name)
 
-        task_info = QLabel(f"{task.get('model', '')} |\n{task.get('aspect_ratio', '')}")
-        task_info.setObjectName("task_info_label")
-        task_info.setWordWrap(True)
-        task_layout.addWidget(task_info)
+        # Model — show short display name
+        model_raw = task.get("model", "")
+        model_short = model_raw.replace("_", " ").split()
+        # e.g. "veo_3_1_t2v_fast_ultra_relaxed" → "veo 3.1 ultra"
+        model_display = model_raw  # fallback
+        if "ultra" in model_raw:
+            model_display = "⚡ ULTRA"
+        elif "pro" in model_raw or "fast" in model_raw:
+            model_display = "🚀 PRO"
+        model_label = QLabel(model_display)
+        model_label.setObjectName("task_info_label")
+        model_label.setStyleSheet(
+            "font-size: 10px; color: #9CA3AF; background: transparent;"
+        )
+        task_layout.addWidget(model_label)
+
+        # Aspect ratio — compact label
+        ratio_raw = task.get("aspect_ratio", "")
+        ratio_display = ratio_raw
+        if "LANDSCAPE" in ratio_raw:
+            ratio_display = "📐 16:9"
+        elif "PORTRAIT" in ratio_raw:
+            ratio_display = "📐 9:16"
+        ratio_label = QLabel(ratio_display)
+        ratio_label.setObjectName("task_info_label")
+        ratio_label.setStyleSheet(
+            "font-size: 10px; color: #9CA3AF; background: transparent;"
+        )
+        task_layout.addWidget(ratio_label)
+
+        # Generation mode — translated badge
+        gen_mode_raw = task.get("generation_mode", "text_to_video")
+        gen_mode_key = f"gen_mode.{gen_mode_raw}"
+        gen_mode_display = self.translator.t(gen_mode_key)
+        # Fallback if key not found
+        if gen_mode_display == gen_mode_key:
+            gen_mode_display = gen_mode_raw.replace("_", " ").title()
+        gen_mode_label = QLabel(f"🎬 {gen_mode_display}")
+        gen_mode_label.setObjectName("task_info_label")
+        gen_mode_label.setStyleSheet(
+            "font-size: 10px; color: #60A5FA; background: transparent;"
+        )
+        task_layout.addWidget(gen_mode_label)
 
         task_layout.addStretch()
         self.setCellWidget(row, 2, task_cell)
@@ -392,7 +443,7 @@ class TaskQueueTable(QTableWidget):
         prompt_item.setToolTip(prompt_text)
         self.setItem(row, 4, prompt_item)
 
-        # Col 5: Output images
+        # Col 5: Output videos
         self._update_output_cell(row, task)
 
         # Col 6: Progress
@@ -404,37 +455,164 @@ class TaskQueueTable(QTableWidget):
         # Col 8: Completed at
         self._update_completed_at_cell(row, task)
 
+    @staticmethod
+    def _extract_video_thumbnail(video_path: str) -> QPixmap | None:
+        """Extract first frame from video as QPixmap using ffmpeg."""
+        import subprocess
+        import tempfile
+
+        if not os.path.isfile(video_path):
+            return None
+
+        try:
+            thumb_path = os.path.join(
+                tempfile.gettempdir(),
+                f"whisk_thumb_{os.path.basename(video_path)}.jpg",
+            )
+            # Use cached thumbnail if it exists and is recent
+            if os.path.isfile(thumb_path):
+                thumb_mtime = os.path.getmtime(thumb_path)
+                video_mtime = os.path.getmtime(video_path)
+                if thumb_mtime >= video_mtime:
+                    pix = QPixmap(thumb_path)
+                    if not pix.isNull():
+                        return pix
+
+            subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", video_path,
+                    "-vframes", "1", "-q:v", "2",
+                    "-vf", "scale=180:-1",
+                    thumb_path,
+                ],
+                capture_output=True, timeout=5,
+            )
+            if os.path.isfile(thumb_path):
+                pix = QPixmap(thumb_path)
+                if not pix.isNull():
+                    return pix
+        except Exception:
+            pass
+        return None
+
     def _update_output_cell(self, row: int, task: dict):
-        """Update only the output images cell for a row."""
+        """Update only the output cell for a row (video-oriented)."""
         output_widget = QWidget()
-        output_layout = QGridLayout(output_widget)
+        output_layout = QVBoxLayout(output_widget)
         output_layout.setContentsMargins(4, 4, 4, 4)
         output_layout.setSpacing(4)
+        output_layout.setAlignment(Qt.AlignCenter)
 
         output_images = task.get("output_images", [])
         num_outputs = task.get("images_per_prompt", 1)
         num_outputs = max(num_outputs, len(output_images), 1)
-        thumb_size = 80 if num_outputs <= 2 else 44
-        cols = 2
+
         for i in range(num_outputs):
             if i < len(output_images) and output_images[i]:
-                img_path = output_images[i]
-                thumb = ClickableLabel(img_path)
-                thumb.setFixedSize(thumb_size, thumb_size)
-                thumb.setAlignment(Qt.AlignCenter)
-                pixmap = QPixmap(img_path).scaled(
-                    thumb_size, thumb_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
-                thumb.setPixmap(pixmap)
-                thumb.setToolTip("Click to preview")
-                thumb.clicked.connect(self._show_image_preview)
+                file_path = output_images[i]
+                basename = os.path.basename(file_path)
+                display_name = basename if len(basename) <= 20 else basename[:17] + "…"
+
+                # Try to extract video thumbnail
+                thumb_pix = self._extract_video_thumbnail(file_path)
+
+                if thumb_pix:
+                    # --- Thumbnail card with play overlay ---
+                    card = QWidget()
+                    card.setFixedSize(180, 108)
+                    card.setStyleSheet(
+                        "background: #0F172A; border: 1px solid #334155; "
+                        "border-radius: 8px;"
+                    )
+                    card_layout = QVBoxLayout(card)
+                    card_layout.setContentsMargins(0, 0, 0, 0)
+                    card_layout.setSpacing(0)
+
+                    # Thumbnail image with play button overlay
+                    thumb_container = QWidget()
+                    thumb_container.setFixedSize(180, 84)
+                    thumb_label = ClickableLabel(file_path)
+                    thumb_label.setParent(thumb_container)
+                    scaled = thumb_pix.scaled(
+                        180, 84, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation,
+                    )
+                    thumb_label.setPixmap(scaled)
+                    thumb_label.setFixedSize(180, 84)
+                    thumb_label.setAlignment(Qt.AlignCenter)
+                    thumb_label.setStyleSheet(
+                        "border: none; border-radius: 8px 8px 0 0; background: transparent;"
+                    )
+                    thumb_label.setCursor(Qt.PointingHandCursor)
+                    thumb_label.setToolTip(f"▶ Click to play: {basename}")
+                    thumb_label.clicked.connect(self._open_output_file)
+
+                    # Play button overlay
+                    play_badge = QLabel("▶", thumb_container)
+                    play_badge.setFixedSize(28, 28)
+                    play_badge.setAlignment(Qt.AlignCenter)
+                    play_badge.setStyleSheet(
+                        "background: rgba(0, 0, 0, 0.6); color: white; "
+                        "border-radius: 14px; font-size: 14px; border: none;"
+                    )
+                    play_badge.move(76, 28)  # Centered on 180x84
+
+                    card_layout.addWidget(thumb_container)
+
+                    # Filename label below thumbnail
+                    name_label = QLabel(f"🎬 {display_name}")
+                    name_label.setAlignment(Qt.AlignCenter)
+                    name_label.setFixedHeight(22)
+                    name_label.setStyleSheet(
+                        "color: #60A5FA; font-size: 10px; background: #1E293B; "
+                        "border: none; border-radius: 0 0 8px 8px; padding: 2px 4px;"
+                    )
+                    card_layout.addWidget(name_label)
+
+                    output_layout.addWidget(card)
+                else:
+                    # Fallback: text-only card (no ffmpeg / thumbnail failed)
+                    video_card = ClickableLabel(file_path)
+                    video_card.setText(f"🎬 {display_name}")
+                    video_card.setAlignment(Qt.AlignCenter)
+                    video_card.setFixedHeight(32)
+                    video_card.setToolTip(f"Click to play: {basename}")
+                    video_card.setStyleSheet(
+                        "background: #1E293B; color: #60A5FA; "
+                        "border: 1px solid #334155; border-radius: 6px; "
+                        "padding: 4px 8px; font-size: 11px;"
+                    )
+                    video_card.clicked.connect(self._open_output_file)
+                    output_layout.addWidget(video_card)
             else:
-                thumb = QLabel()
-                thumb.setFixedSize(thumb_size, thumb_size)
-                thumb.setAlignment(Qt.AlignCenter)
-                thumb.setObjectName("output_placeholder")
-                thumb.setText("🖼")
-            output_layout.addWidget(thumb, i // cols, i % cols)
+                # --- Placeholder: no video yet ---
+                placeholder = QWidget()
+                placeholder.setFixedSize(180, 80)
+                placeholder.setStyleSheet(
+                    "background: #0F172A; "
+                    "border: 2px dashed #334155; border-radius: 8px;"
+                )
+                ph_layout = QVBoxLayout(placeholder)
+                ph_layout.setContentsMargins(0, 8, 0, 8)
+                ph_layout.setSpacing(4)
+                ph_layout.setAlignment(Qt.AlignCenter)
+
+                icon_label = QLabel("🎥")
+                icon_label.setAlignment(Qt.AlignCenter)
+                icon_label.setStyleSheet(
+                    "font-size: 24px; border: none; background: transparent;"
+                )
+                ph_layout.addWidget(icon_label)
+
+                text_label = QLabel("Waiting…")
+                text_label.setAlignment(Qt.AlignCenter)
+                text_label.setStyleSheet(
+                    "color: #4B5563; font-size: 10px; border: none; background: transparent;"
+                )
+                ph_layout.addWidget(text_label)
+
+                output_layout.addWidget(placeholder)
+
+        output_layout.addStretch()
         self.setCellWidget(row, 5, output_widget)
 
     def _update_progress_cell(self, row: int, task: dict):
@@ -487,15 +665,50 @@ class TaskQueueTable(QTableWidget):
                 pbar.setFormat("100%")
             progress_layout.addWidget(pbar)
 
-        # Elapsed time label (running tasks only)
+        # Elapsed time + refresh button row (running tasks only)
         if status == "running":
+            time_row = QHBoxLayout()
+            time_row.setSpacing(4)
+
             elapsed_label = QLabel("⏱ 0s / 120s")
             elapsed_label.setObjectName("elapsed_timer_label")
             elapsed_label.setAlignment(Qt.AlignCenter)
             elapsed_label.setStyleSheet(
                 "color: #9CA3AF; font-size: 11px; background: transparent;"
             )
-            progress_layout.addWidget(elapsed_label)
+            time_row.addWidget(elapsed_label, 1)
+
+            # Manual refresh button (only if operation has started)
+            if task.get("operation_name"):
+                task_id_for_refresh = self._task_ids[row] if row < len(self._task_ids) else ""
+                refresh_btn = QPushButton("🔄")
+                refresh_btn.setObjectName("action_icon_btn")
+                refresh_btn.setFixedSize(28, 28)
+                refresh_btn.setToolTip("Refresh status")
+                refresh_btn.setCursor(Qt.PointingHandCursor)
+                refresh_btn.clicked.connect(
+                    lambda checked, tid=task_id_for_refresh: self.refresh_clicked.emit(tid)
+                )
+                time_row.addWidget(refresh_btn)
+
+            progress_layout.addLayout(time_row)
+
+        # Manual refresh button for error tasks (always visible)
+        if status == "error":
+            task_id_for_refresh = self._task_ids[row] if row < len(self._task_ids) else ""
+            refresh_row = QHBoxLayout()
+            refresh_row.setSpacing(4)
+
+            refresh_btn = QPushButton("🔄 Recheck")
+            refresh_btn.setObjectName("action_icon_btn")
+            refresh_btn.setFixedHeight(24)
+            refresh_btn.setToolTip("Recheck video generation status")
+            refresh_btn.setCursor(Qt.PointingHandCursor)
+            refresh_btn.clicked.connect(
+                lambda checked, tid=task_id_for_refresh: self.refresh_clicked.emit(tid)
+            )
+            refresh_row.addWidget(refresh_btn)
+            progress_layout.addLayout(refresh_row)
 
         # Action buttons for completed tasks
         if status == "completed":
@@ -811,7 +1024,7 @@ class TaskQueueTable(QTableWidget):
         """Update headers when language changes."""
         self._update_headers()
 
-    def _show_image_preview(self, image_path: str):
-        """Open image preview dialog for the given path."""
-        dialog = ImagePreviewDialog(image_path, parent=self.window())
-        dialog.exec()
+    def _open_output_file(self, file_path: str):
+        """Open output file (video/image) with system default player."""
+        if file_path and os.path.isfile(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))

@@ -3,7 +3,7 @@ Whisk Desktop — Cookie/API-Key API Client.
 
 Real HTTP client for cookie management endpoints:
 - Test cookie validity (POST /api-keys/test)
-- Save/create cookie as api-key (POST /tools/token/frame/run?type=WHISK)
+- Save/create cookie as api-key (POST /tools/token/frame/run?type=VEO3_V2)
 - List api-keys/cookies (GET /api-keys)
 """
 import json
@@ -48,7 +48,7 @@ class CookieApiClient:
                 - cookies: dict with session-token and csrf-token
                 - label: str
                 - flow_id: int
-                - provider: str (defaults to "WHISK")
+                - provider: str (defaults to "VEO3_V2")
                 Optional:
                 - create_new: bool (default False)
                 - timeout: int (default 10)
@@ -57,7 +57,7 @@ class CookieApiClient:
             ApiResponse with provider_info (user_email, user_name, expires, etc.)
         """
         if "provider" not in data:
-            data["provider"] = "WHISK"
+            data["provider"] = "VEO3_V2"
 
         url = flow_url("api-keys/test")
         payload = json.dumps(data).encode("utf-8")
@@ -99,7 +99,7 @@ class CookieApiClient:
 
     def save_cookie(self, data: dict) -> ApiResponse:
         """
-        POST /tools/token/frame/run?type=WHISK — Save cookie as api-key.
+        POST /tools/token/frame/run?type=VEO3_V2 — Save cookie as api-key.
 
         Args:
             data: Must include:
@@ -112,7 +112,7 @@ class CookieApiClient:
         Returns:
             ApiResponse with api_key data, session info, etc.
         """
-        provider = data.pop("provider", "WHISK")
+        provider = data.pop("provider", "VEO3_V2")
         params = urllib.parse.urlencode({"type": provider})
         url = f"{flow_url('tools/token/frame/run')}?{params}"
         payload = json.dumps(data).encode("utf-8")
@@ -155,7 +155,7 @@ class CookieApiClient:
     def get_api_keys(
         self,
         flow_id: int,
-        provider: str = "WHISK",
+        provider: str = "VEO3_V2",
         offset: int = 0,
         limit: int = 1000,
         status: str = "ALL",

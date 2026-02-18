@@ -1,5 +1,5 @@
 """
-Tests for GenerationWorker — batch image generation, timeout, progress, concurrency.
+Tests for GenerationWorker — batch video generation, polling, progress, concurrency.
 """
 import os
 import time
@@ -30,17 +30,71 @@ def _make_task(task_id="t1", stt=1, prompt="test prompt", **overrides):
     return task
 
 
-def _make_api_response(success=True, encoded_image=None):
-    """Helper to create a mock API response."""
-    if encoded_image is None:
-        encoded_image = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50).decode()
+def _make_api_response(success=True, operation_name="op-test-123", scene_id="scene-test-456"):
+    """Helper to create a mock generate_image API response (async format)."""
     if success:
         return ApiResponse(
             success=True,
-            data={"encoded_image": encoded_image, "seed": 12345},
-            message="Image generated successfully",
+            data={
+                "response": {
+                    "operations": [
+                        {
+                            "operation": {"name": operation_name},
+                            "sceneId": scene_id,
+                            "status": "MEDIA_GENERATION_STATUS_ACTIVE",
+                        }
+                    ]
+                },
+                "seed": 12345,
+                "scene_id": scene_id,
+                "workflow_id": "wf-test",
+                "prompt": "test prompt",
+            },
+            message="Video generation started",
         )
     return ApiResponse(success=False, data={}, message="API Error: test failure")
+
+
+def _make_status_response(status="MEDIA_GENERATION_STATUS_SUCCESSFUL", fife_url="https://example.com/video.mp4"):
+    """Helper to create a mock check_video_status API response."""
+    if status == "MEDIA_GENERATION_STATUS_SUCCESSFUL":
+        return ApiResponse(
+            success=True,
+            data={
+                "status": status,
+                "fife_url": fife_url,
+                "media_generation_id": "media-gen-id",
+                "prompt": "test prompt",
+                "seed": 12345,
+                "remaining_credits": 100,
+            },
+            message="Video generation completed",
+        )
+    elif status == "MEDIA_GENERATION_STATUS_FAILED":
+        return ApiResponse(
+            success=False,
+            data={"status": status},
+            message="Video generation failed: test error",
+        )
+    else:
+        return ApiResponse(
+            success=True,
+            data={"status": status},
+            message=f"Status: {status}",
+        )
+
+
+def _make_mock_bridge():
+    """Create a mock captcha bridge that immediately provides a token."""
+    bridge = MagicMock()
+    bridge.total_tokens_received = 1
+    bridge._last_token = "MOCK_CAPTCHA_TOKEN"
+    bridge.isRunning.return_value = True
+    def _request_token(**kwargs):
+        bridge.total_tokens_received += 1
+        bridge._last_token = "MOCK_CAPTCHA_TOKEN"
+    bridge.request_token.side_effect = _request_token
+    return bridge
 
 
 def _make_worker(tasks=None, **kwargs):
@@ -51,6 +105,8 @@ def _make_worker(tasks=None, **kwargs):
         "workflow_id": "wf-test",
         "tasks": tasks or [],
         "concurrency": 2,
+        "captcha_bridge": _make_mock_bridge(),
+        "poll_interval": 1,
     }
     defaults.update(kwargs)
     return GenerationWorker(**defaults)
@@ -75,30 +131,40 @@ class TestGenerationWorkerInit:
         worker = _make_worker(concurrency=0)
         assert worker.concurrency == 1
 
-    def test_concurrency_negative_clamped(self):
-        worker = _make_worker(concurrency=-5)
-        assert worker.concurrency == 1
+    def test_default_concurrency(self):
+        worker = _make_worker()
+        assert worker.concurrency == 2
+
+    def test_timeout_constant(self):
+        worker = _make_worker()
+        assert worker.TASK_TIMEOUT == 600
+
+    def test_initial_stop_flag_false(self):
+        worker = _make_worker()
+        assert worker._stop_flag is False
 
     def test_stop_sets_flag(self):
         worker = _make_worker()
         worker.stop()
         assert worker._stop_flag is True
 
-    def test_timeout_constant(self):
-        worker = _make_worker()
-        assert worker.TASK_TIMEOUT == 60
+    def test_poll_interval_stored(self):
+        worker = _make_worker(poll_interval=45)
+        assert worker.poll_interval == 45
 
-    def test_initial_stop_flag_false(self):
-        worker = _make_worker()
-        assert worker._stop_flag is False
+    def test_poll_interval_minimum_five(self):
+        worker = _make_worker(poll_interval=2)
+        assert worker.poll_interval == 5
 
 
 class TestGenerationWorkerProcessTask:
-    """Test _process_task for single task execution."""
+    """Test _process_task logic."""
 
-    def test_successful_generate_emits_completed(self, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_successful_generate_emits_completed(self, mock_dl, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         task = _make_task(output_folder=str(tmp_path))
         worker = _make_worker(workflow_api=api, tasks=[task])
@@ -134,6 +200,7 @@ class TestGenerationWorkerProcessTask:
     def test_initial_progress_between_10_and_15(self, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         task = _make_task(output_folder=str(tmp_path))
         worker = _make_worker(workflow_api=api, tasks=[task])
@@ -141,7 +208,8 @@ class TestGenerationWorkerProcessTask:
         signals = []
         worker.task_progress.connect(lambda *args: signals.append(args))
 
-        worker._process_task(task)
+        with patch.object(GenerationWorker, '_download_video', return_value="/tmp/t.mp4"):
+            worker._process_task(task)
 
         first = signals[0]
         assert first[2] == "running"
@@ -161,9 +229,11 @@ class TestGenerationWorkerProcessTask:
         assert len(signals) == 0
         api.generate_image.assert_not_called()
 
-    def test_multiple_images_per_prompt(self, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_multiple_images_per_prompt(self, mock_dl, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         task = _make_task(output_folder=str(tmp_path), images_per_prompt=3)
         worker = _make_worker(workflow_api=api, tasks=[task])
@@ -178,9 +248,11 @@ class TestGenerationWorkerProcessTask:
         assert last[2] == "completed"
         assert len(last[3].get("output_images", [])) == 3
 
-    def test_elapsed_seconds_in_result(self, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_elapsed_seconds_in_result(self, mock_dl, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         task = _make_task(output_folder=str(tmp_path))
         worker = _make_worker(workflow_api=api, tasks=[task])
@@ -198,9 +270,11 @@ class TestGenerationWorkerProcessTask:
 class TestGenerationWorkerBatch:
     """Test batch execution (run method)."""
 
-    def test_batch_all_succeed(self, qtbot, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_batch_all_succeed(self, mock_dl, qtbot, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         tasks = [_make_task(f"t{i}", i, output_folder=str(tmp_path)) for i in range(3)]
         worker = _make_worker(workflow_api=api, tasks=tasks)
@@ -232,12 +306,14 @@ class TestGenerationWorkerBatch:
 
         assert len(error_ids) == 2
 
-    def test_batch_mixed_success_and_failure(self, qtbot, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_batch_mixed_success_and_failure(self, mock_dl, qtbot, tmp_path):
         api = MagicMock()
         api.generate_image.side_effect = [
             _make_api_response(success=True),
             _make_api_response(success=False),
         ]
+        api.check_video_status.return_value = _make_status_response()
 
         tasks = [
             _make_task("t1", 1, output_folder=str(tmp_path)),
@@ -262,9 +338,11 @@ class TestGenerationWorkerBatch:
         with qtbot.waitSignal(worker.finished_all, timeout=5000):
             worker.start()
 
-    def test_finished_all_emitted(self, qtbot, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_finished_all_emitted(self, mock_dl, qtbot, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         tasks = [_make_task("t1", 1, output_folder=str(tmp_path))]
         worker = _make_worker(workflow_api=api, tasks=tasks)
@@ -272,9 +350,11 @@ class TestGenerationWorkerBatch:
         with qtbot.waitSignal(worker.finished_all, timeout=10000):
             worker.start()
 
-    def test_concurrency_limit_respected(self, qtbot, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_concurrency_limit_respected(self, mock_dl, qtbot, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         tasks = [_make_task(f"t{i}", i, output_folder=str(tmp_path)) for i in range(5)]
         worker = _make_worker(workflow_api=api, tasks=tasks, concurrency=2)
@@ -284,9 +364,11 @@ class TestGenerationWorkerBatch:
 
         assert api.generate_image.call_count == 5
 
-    def test_all_task_ids_reported(self, qtbot, tmp_path):
+    @patch.object(GenerationWorker, '_download_video', return_value="/tmp/test.mp4")
+    def test_all_task_ids_reported(self, mock_dl, qtbot, tmp_path):
         api = MagicMock()
         api.generate_image.return_value = _make_api_response(success=True)
+        api.check_video_status.return_value = _make_status_response()
 
         tasks = [_make_task(f"t{i}", i, output_folder=str(tmp_path)) for i in range(4)]
         worker = _make_worker(workflow_api=api, tasks=tasks)
@@ -307,7 +389,6 @@ class TestGenerationWorkerTimeout:
         api = MagicMock()
 
         def slow_generate(*args, **kwargs):
-            # Block long enough for the timeout to fire in run()
             time.sleep(5)
             return _make_api_response(success=True)
 
@@ -315,12 +396,12 @@ class TestGenerationWorkerTimeout:
 
         task = _make_task("slow-1", 1)
         worker = _make_worker(workflow_api=api, tasks=[task])
-        worker.TASK_TIMEOUT = 1  # 1-second timeout for test
+        worker.TASK_TIMEOUT = 1
+        worker.POLL_MAX_TIME = 1
 
         results = {}
 
         def on_progress(tid, p, s, d):
-            # Only record terminal states
             if s in ("error", "completed"):
                 results[tid] = {"status": s, "data": d}
 
@@ -329,13 +410,7 @@ class TestGenerationWorkerTimeout:
         with qtbot.waitSignal(worker.finished_all, timeout=15000):
             worker.start()
 
-        # The run() method should catch TimeoutError and emit error
-        # Note: _process_task may also emit completed after the timeout,
-        # but the last recorded status should reflect the timeout error
         assert "slow-1" in results
-        # Either the timeout error was caught, or _process_task completed
-        # The key behavior: run() doesn't hang forever
-        # Verify the worker actually finishes (the waitSignal above confirms this)
 
 
 class TestGenerationWorkerSaveImage:
@@ -395,61 +470,22 @@ class TestGenerationWorkerSaveImage:
         assert os.path.basename(path) == "010.png"
 
 
-class TestGenerationWorkerDefaultSavePath:
-    """Test default save path with project name."""
+class TestGenerationWorkerGetSaveFolder:
+    """Test _get_save_folder helper."""
 
-    def test_default_folder_with_workflow_name(self, tmp_path):
-        api = MagicMock()
-        api.generate_image.return_value = _make_api_response(success=True)
+    def test_custom_folder_returned(self):
+        worker = _make_worker(workflow_name="Test")
+        assert worker._get_save_folder("/custom/path") == "/custom/path"
 
-        task = _make_task("t1", 1)
-        worker = _make_worker(workflow_api=api, tasks=[task], workflow_name="My Project")
-
+    def test_workflow_name_in_path(self, tmp_path):
+        worker = _make_worker(workflow_name="MyProject")
         with patch("os.path.expanduser", return_value=str(tmp_path)):
-            signals = []
-            worker.task_progress.connect(lambda *args: signals.append(args))
-            worker._process_task(task)
+            folder = worker._get_save_folder("")
+            assert "MyProject" in folder
 
-            completed = [s for s in signals if s[2] == "completed"]
-            assert len(completed) == 1
-            paths = completed[0][3].get("output_images", [])
-            assert len(paths) == 1
-            assert "My Project" in paths[0]
-
-    def test_workflow_name_sanitized(self, tmp_path):
-        api = MagicMock()
-        api.generate_image.return_value = _make_api_response(success=True)
-
-        task = _make_task("t1", 1)
-        worker = _make_worker(
-            workflow_api=api, tasks=[task],
-            workflow_name="Test/Project:Name",
-        )
-
+    def test_sanitized_workflow(self, tmp_path):
+        worker = _make_worker(workflow_name="A/B:C")
         with patch("os.path.expanduser", return_value=str(tmp_path)):
-            signals = []
-            worker.task_progress.connect(lambda *args: signals.append(args))
-            worker._process_task(task)
-
-            completed = [s for s in signals if s[2] == "completed"]
-            paths = completed[0][3].get("output_images", [])
-            folder_name = os.path.basename(os.path.dirname(paths[0]))
-            assert "/" not in folder_name
-            assert ":" not in folder_name
-
-    def test_empty_workflow_name_uses_base(self, tmp_path):
-        api = MagicMock()
-        api.generate_image.return_value = _make_api_response(success=True)
-
-        task = _make_task("t1", 1)
-        worker = _make_worker(workflow_api=api, tasks=[task], workflow_name="")
-
-        with patch("os.path.expanduser", return_value=str(tmp_path)):
-            signals = []
-            worker.task_progress.connect(lambda *args: signals.append(args))
-            worker._process_task(task)
-
-            completed = [s for s in signals if s[2] == "completed"]
-            paths = completed[0][3].get("output_images", [])
-            assert len(paths) == 1
-            assert "whisk_pro" in paths[0]
+            folder = worker._get_save_folder("")
+            assert "/" not in os.path.basename(folder)
+            assert ":" not in os.path.basename(folder)

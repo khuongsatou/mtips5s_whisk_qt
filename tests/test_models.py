@@ -14,7 +14,7 @@ class TestTaskItem:
         assert task.status == "pending"
         assert task.images_per_prompt == 1
         assert task.quality == "1K"
-        assert task.aspect_ratio == "16:9"
+        assert task.aspect_ratio == "VIDEO_ASPECT_RATIO_LANDSCAPE"
         assert task.error_message == ""
         assert task.reference_images == []
 

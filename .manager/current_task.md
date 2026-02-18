@@ -1,27 +1,24 @@
-# 📋 Current Task Status
+# Current Task
 
-> **Updated:** 2026-02-17 19:19 (UTC+7)
+## Active: Cookie Management & UX Polish (Session 2026-02-18)
 
-## ✅ Just Completed
+**Status:** ✅ Completed
 
-1. **AI Prompt Generator Dialog** — Modal with custom template + user idea + ChatGPT/Gemini buttons
-2. **CRUD Saved Prompts Table** — Persistent saved prompts with full CRUD, stored in `~/.whisk_saved_prompts.json`
-3. **Cancel Running Tasks (⏹)** — Button to stop worker and mark running tasks as error
-4. **Search Input Redesign** — Pill-shaped search input and status filter with focus animation
-5. **Sidebar Logo Redesign** — Prominent logo, branding label, YouTube link
-6. **Language Switcher Redesign** — Toggle pill buttons replacing QComboBox
-7. **Google Credits in Cookie Manager** — Async credit check with loading indicators
-8. **Preferences Persistence** — Theme and language saved to `~/.whisk_preferences.json`
-9. **Table Selection Fix** — Purple highlight with white text for visibility
+### Completed Items
 
-## 🎯 No Active Task
+- [x] Dedicated "Get Cookie" button in bridge dashboard
+- [x] Extension: extract `__Secure-next-auth.session-token` from `labs.google`
+- [x] Bridge server: `POST /bridge/cookie` + `GET /bridge/cookie` endpoints
+- [x] Extension popup: cookie POST status feedback (✅/⚠️)
+- [x] Separate Start Cookie / Stop Cookie toggle (2h sync)
+- [x] Auto-fetch cookie on Cookie Manager dialog open
+- [x] Fixed Get Cookie freeze (Qt Signal instead of QTimer from threads)
+- [x] Suppress noisy GET /bridge/cookie logs
+- [x] Cookie endpoint API docs in dashboard
+- [x] New Workflow button loading state (background thread)
 
-All requested features have been implemented and committed. Awaiting next user request.
+### Backlog
 
-## 📊 Backlog
-
-| Priority | Feature                      | Status      |
-| -------- | ---------------------------- | ----------- |
-| Low      | Batch export to CSV/Excel    | Not started |
-| Low      | Keyboard shortcuts           | Not started |
-| Low      | Drag-and-drop prompt reorder | Not started |
+- [ ] Persistent cookie storage on bridge (survive app restart)
+- [ ] Chrome alarms API for MV3 background sync
+- [ ] Cookie integration tests

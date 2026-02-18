@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-echo "🔨 Building WhiskDesktop.exe for Windows via Docker..."
+echo "🔨 Building Veo3DeskTop.exe for Windows via Docker..."
 echo "======================================================="
 echo ""
 
@@ -22,18 +22,18 @@ echo "✅ Docker đang chạy"
 echo ""
 
 # Clean dist
-rm -rf "$PROJECT_DIR/dist/WhiskDesktop" 2>/dev/null
+rm -rf "$PROJECT_DIR/dist/Veo3DeskTop" 2>/dev/null
 
 # Build
 cd "$PROJECT_DIR"
 docker compose -f scripts/docker-compose.build.yml up --build --abort-on-container-exit
 
 echo ""
-if [ -f "dist/WhiskDesktop/WhiskDesktop.exe" ]; then
+if [ -f "dist/Veo3DeskTop/Veo3DeskTop.exe" ]; then
     echo "✅ Build thành công!"
-    echo "📍 Output: dist/WhiskDesktop/WhiskDesktop.exe"
-    echo "📦 Size: $(du -sh dist/WhiskDesktop/ | cut -f1)"
+    echo "📍 Output: dist/Veo3DeskTop/Veo3DeskTop.exe"
+    echo "📦 Size: $(du -sh dist/Veo3DeskTop/ | cut -f1)"
 else
-    echo "❌ Build thất bại — không tìm thấy WhiskDesktop.exe"
+    echo "❌ Build thất bại — không tìm thấy Veo3DeskTop.exe"
     exit 1
 fi

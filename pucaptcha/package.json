@@ -1,0 +1,10 @@
+{
+  "name": "pucaptcha-sidecar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Puppeteer captcha sidecar for Whisk Desktop",
+  "main": "capture-sidecar.js",
+  "dependencies": {
+    "puppeteer-real-browser": "^1.3.10"
+  }
+}

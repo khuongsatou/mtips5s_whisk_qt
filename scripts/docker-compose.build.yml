@@ -5,7 +5,7 @@
 #   docker compose -f scripts/docker-compose.build.yml up --build
 #
 # Output:
-#   dist/WhiskDesktop/WhiskDesktop.exe
+#   dist/Veo3DeskTop/Veo3DeskTop.exe
 # ============================================================
 
 services:
@@ -21,8 +21,8 @@ services:
     command: >
       bash -c "
         echo '✅ Copying output...' &&
-        cp -r /src/dist/WhiskDesktop /output/ &&
+        cp -r /src/dist/Veo3DeskTop /output/ &&
         echo '========================================' &&
-        echo ' Output: dist/WhiskDesktop/WhiskDesktop.exe' &&
+        echo ' Output: dist/Veo3DeskTop/Veo3DeskTop.exe' &&
         echo '========================================'
       "

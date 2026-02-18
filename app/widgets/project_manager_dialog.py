@@ -158,7 +158,7 @@ class ProjectManagerDialog(QDialog):
         # Try real API first, then fall back to mock
         projects = []
         if self.flow_api:
-            resp = self.flow_api.get_flows(flow_type="WHISK")
+            resp = self.flow_api.get_flows(flow_type="VEO3_V2")
             if resp.success and resp.data:
                 items = resp.data.get("items", [])
                 # Map server flow fields to project fields for UI
@@ -307,7 +307,7 @@ class ProjectManagerDialog(QDialog):
             if self.flow_api:
                 resp = self.flow_api.create_flow({
                     "name": name,
-                    "type": "WHISK",
+                    "type": "VEO3_V2",
                     "status": "pending",
                     "config": {},
                 })

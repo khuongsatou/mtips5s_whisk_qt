@@ -78,7 +78,7 @@ class TestFlowApiCreateFlow:
         data = {"name": "test"}
         client.create_flow(data)
 
-        assert data["type"] == "WHISK"
+        assert data["type"] == "VEO3_V2"
 
     @patch("app.api.flow_api.urllib.request.urlopen")
     def test_create_flow_preserves_custom_type(self, mock_urlopen):

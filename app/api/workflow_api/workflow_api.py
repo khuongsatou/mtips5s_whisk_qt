@@ -4,7 +4,7 @@ Whisk Desktop — Workflow API Client.
 Handles workflow creation on Google Labs, linking to the server flow,
 and image generation via the whisk:generateImage endpoint:
 - Create workflow (POST labs.google/fx/api/trpc/media.createOrUpdateWorkflow)
-- Link workflow to flow (POST {FLOW_BASE_URL}/tools/upload/frame/run?type=WHISK)
+- Link workflow to flow (POST {FLOW_BASE_URL}/tools/upload/frame/run?type=VEO3_V2)
 - Generate image (POST aisandbox-pa.googleapis.com/v1/whisk:generateImage)
 """
 import json
@@ -18,7 +18,7 @@ from app.api.api_config import LABS_BASE_URL, flow_url
 from app.api.models import ApiResponse
 from app.api.workflow_api.constants import (
     LABS_TRPC_URL, WHISK_API_URL, WHISK_RECIPE_URL, WHISK_CREDIT_URL,
-    ASPECT_RATIO_MAP,
+    VIDEO_GENERATE_URL, VIDEO_STATUS_URL, ASPECT_RATIO_MAP,
 )
 
 logger = logging.getLogger("whisk.workflow_api")
@@ -38,26 +38,19 @@ class WorkflowApiClient:
 
     def create_workflow(self, session_token: str, csrf_token: str = "") -> ApiResponse:
         """
-        POST labs.google/fx/api/trpc/media.createOrUpdateWorkflow
+        POST labs.google/fx/api/trpc/project.createProject
 
-        Uses cookie-based auth (session-token) to create a workflow on Labs.
-        Returns ApiResponse with data containing workflowId.
+        Uses cookie-based auth (session-token) to create a project on Labs.
+        Returns ApiResponse with data containing workflowId (projectId).
         """
         from datetime import datetime
         now = datetime.now()
-        workflow_name = f"Whisk: {now.strftime('%-m/%-d/%y')}"
-        session_id = f";{int(time.time() * 1000)}"
+        project_title = now.strftime("%b %d - %H:%M")
 
         payload = {
             "json": {
-                "clientContext": {
-                    "tool": "BACKBONE",
-                    "sessionId": session_id,
-                },
-                "mediaGenerationIdsToCopy": [],
-                "workflowMetadata": {
-                    "workflowName": workflow_name,
-                },
+                "projectTitle": project_title,
+                "toolName": "PINHOLE",
             }
         }
 
@@ -70,7 +63,7 @@ class WorkflowApiClient:
             "Accept": "*/*",
             "Content-Type": "application/json",
             "Origin": "https://labs.google",
-            "Referer": "https://labs.google/fx/vi/tools/whisk/project",
+            "Referer": "https://labs.google/fx/vi/tools/flow",
             "Cookie": cookies,
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -96,25 +89,30 @@ class WorkflowApiClient:
             logger.info(f"📥 <<< {resp.status} OK")
             logger.debug(f"📥 <<< Response: {json.dumps(resp_body, indent=2)}")
 
-            # Extract workflowId from nested response
+            # Extract projectId from nested tRPC response
             result = (resp_body
                       .get("result", {})
                       .get("data", {})
                       .get("json", {})
                       .get("result", {}))
-            workflow_id = result.get("workflowId", "")
+            project_id = result.get("projectId", "")
+            project_info = result.get("projectInfo", {})
+            project_title_resp = project_info.get("projectTitle", project_title)
 
-            if workflow_id:
+            if project_id:
                 return ApiResponse(
                     success=True,
-                    data={"workflowId": workflow_id, "workflowName": workflow_name},
-                    message=f"Workflow created: {workflow_id}",
+                    data={
+                        "workflowId": project_id,
+                        "workflowName": project_title_resp,
+                    },
+                    message=f"Project created: {project_id}",
                 )
             else:
                 return ApiResponse(
                     success=False,
                     data=resp_body,
-                    message="No workflowId in response",
+                    message="No projectId in response",
                 )
 
         except urllib.error.HTTPError as e:
@@ -143,11 +141,11 @@ class WorkflowApiClient:
         use_credit: bool = True,
     ) -> ApiResponse:
         """
-        POST /tools/upload/frame/run?type=WHISK
+        POST /tools/upload/frame/run?type=VEO3_V2
 
         Links a workflowId (project_id) to a server flow.
         """
-        params = urllib.parse.urlencode({"type": "WHISK"})
+        params = urllib.parse.urlencode({"type": "VEO3_V2"})
         url = f"{flow_url('tools/upload/frame/run')}?{params}"
 
         payload = {
@@ -418,67 +416,56 @@ class WorkflowApiClient:
         google_access_token: str,
         workflow_id: str,
         prompt: str,
-        aspect_ratio: str = "16:9",
-        image_model: str = "IMAGEN_3_5",
+        aspect_ratio: str = "VIDEO_ASPECT_RATIO_LANDSCAPE",
+        image_model: str = "veo_3_1_t2v_fast",
         seed: int | None = None,
         media_inputs: list[dict] | None = None,
         timeout: int = 60,
+        recaptcha_token: str = "",
     ) -> ApiResponse:
         """
-        POST aisandbox-pa.googleapis.com/v1/whisk:generateImage
+        POST aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoText
 
-        Uses a Google OAuth access_token (ya29.a0...) to generate an image.
-        Returns ApiResponse with data containing base64 encoded image.
+        Uses a Google OAuth access_token (ya29.a0...) to generate a video.
+        Returns ApiResponse with data containing video generation info.
         """
+        import uuid
+
         if seed is None:
-            seed = random.randint(100000, 999999)
+            seed = random.randint(1000, 99999)
 
-        api_ratio = ASPECT_RATIO_MAP.get(aspect_ratio, "IMAGE_ASPECT_RATIO_LANDSCAPE")
+        api_ratio = ASPECT_RATIO_MAP.get(aspect_ratio, "VIDEO_ASPECT_RATIO_LANDSCAPE")
         session_id = f";{int(time.time() * 1000)}"
+        scene_id = str(uuid.uuid4())
 
-        # Choose endpoint and payload based on whether ref images are present
-        if media_inputs:
-            # With reference images → runImageRecipe
-            api_url = WHISK_RECIPE_URL
-            payload = {
-                "clientContext": {
-                    "workflowId": workflow_id,
-                    "tool": "BACKBONE",
-                    "sessionId": session_id,
-                },
-                "seed": seed,
-                "imageModelSettings": {
-                    "imageModel": image_model,
+        api_url = VIDEO_GENERATE_URL
+        payload = {
+            "clientContext": {
+                "sessionId": session_id,
+                "projectId": workflow_id,
+                "tool": "PINHOLE",
+                "userPaygateTier": "PAYGATE_TIER_ONE",
+            },
+            "requests": [
+                {
                     "aspectRatio": api_ratio,
-                },
-                "userInstruction": prompt,
-                "recipeMediaInputs": [
-                    {
-                        "caption": mi.get("caption", ""),
-                        "mediaInput": {
-                            "mediaCategory": mi["mediaCategory"],
-                            "mediaGenerationId": mi["uploadMediaGenerationId"],
-                        },
-                    }
-                    for mi in media_inputs
-                ],
-            }
-        else:
-            # Without reference images → generateImage
-            api_url = WHISK_API_URL
-            payload = {
-                "clientContext": {
-                    "workflowId": workflow_id,
-                    "tool": "BACKBONE",
-                    "sessionId": session_id,
-                },
-                "imageModelSettings": {
-                    "imageModel": image_model,
-                    "aspectRatio": api_ratio,
-                },
-                "seed": seed,
-                "prompt": prompt,
-                "mediaCategory": "MEDIA_CATEGORY_BOARD",
+                    "seed": seed,
+                    "textInput": {
+                        "prompt": prompt,
+                    },
+                    "videoModelKey": image_model,
+                    "metadata": {
+                        "sceneId": scene_id,
+                    },
+                }
+            ],
+        }
+
+        # Add recaptcha context if token is provided
+        if recaptcha_token:
+            payload["clientContext"]["recaptchaContext"] = {
+                "token": recaptcha_token,
+                "applicationType": "RECAPTCHA_APPLICATION_TYPE_WEB",
             }
 
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -507,28 +494,19 @@ class WorkflowApiClient:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 resp_body = json.loads(resp.read().decode("utf-8"))
 
-            logger.info(f"📥 <<< {resp.status} OK — image generated")
+            logger.info(f"📥 <<< {resp.status} OK — video generation started")
+            logger.debug(f"📥 <<< Response: {json.dumps(resp_body, indent=2, ensure_ascii=False)}")
 
-            # Extract first generated image
-            panels = resp_body.get("imagePanels", [])
-            if not panels:
-                return ApiResponse(success=False, data=resp_body, message="No imagePanels in response")
-
-            images = panels[0].get("generatedImages", [])
-            if not images:
-                return ApiResponse(success=False, data=resp_body, message="No generatedImages in response")
-
-            img = images[0]
             return ApiResponse(
                 success=True,
                 data={
-                    "encoded_image": img.get("encodedImage", ""),
-                    "seed": img.get("seed", seed),
-                    "media_generation_id": img.get("mediaGenerationId", ""),
-                    "workflow_id": resp_body.get("workflowId", workflow_id),
-                    "prompt": img.get("prompt", prompt),
+                    "response": resp_body,
+                    "seed": seed,
+                    "scene_id": scene_id,
+                    "workflow_id": workflow_id,
+                    "prompt": prompt,
                 },
-                message="Image generated successfully",
+                message="Video generation started",
             )
 
         except urllib.error.HTTPError as e:
@@ -545,6 +523,138 @@ class WorkflowApiClient:
             return ApiResponse(success=False, message="Cannot connect to Google API")
         except Exception as e:
             logger.error(f"❌ <<< generate_image exception: {e}")
+            return ApiResponse(success=False, message=str(e))
+
+    # ── Check video generation status (polling) ───────────────────────
+
+    def check_video_status(
+        self,
+        google_access_token: str,
+        operation_name: str,
+        scene_id: str,
+        current_status: str = "MEDIA_GENERATION_STATUS_ACTIVE",
+        timeout: int = 30,
+    ) -> ApiResponse:
+        """
+        POST aisandbox-pa.googleapis.com/v1/video:batchCheckAsyncVideoGenerationStatus
+
+        Polls the status of an async video generation operation.
+        Returns ApiResponse with status and video URL when complete.
+        """
+        payload = {
+            "operations": [
+                {
+                    "operation": {
+                        "name": operation_name,
+                    },
+                    "sceneId": scene_id,
+                    "status": current_status,
+                }
+            ]
+        }
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers = {
+            "Accept": "*/*",
+            "Content-Type": "text/plain;charset=UTF-8",
+            "Authorization": f"Bearer {google_access_token}",
+            "Origin": "https://labs.google",
+            "Referer": "https://labs.google/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/144.0.0.0 Safari/537.36",
+        }
+
+        try:
+            req = urllib.request.Request(
+                VIDEO_STATUS_URL,
+                data=body,
+                headers=headers,
+                method="POST",
+            )
+
+            logger.info(f"📤 >>> POST {VIDEO_STATUS_URL} (op={operation_name[:16]}...)")
+            logger.debug(f"📤 >>> Body: {json.dumps(payload, indent=2)}")
+
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                resp_body = json.loads(resp.read().decode("utf-8"))
+
+            logger.debug(f"📥 <<< Response: {json.dumps(resp_body, indent=2)}")
+
+            operations = resp_body.get("operations", [])
+            if not operations:
+                return ApiResponse(
+                    success=False,
+                    data=resp_body,
+                    message="No operations in status response",
+                )
+
+            op = operations[0]
+            status = op.get("status", "")
+            remaining_credits = resp_body.get("remainingCredits")
+
+            result_data = {
+                "status": status,
+                "operation_name": operation_name,
+                "scene_id": scene_id,
+                "remaining_credits": remaining_credits,
+            }
+
+            if status == "MEDIA_GENERATION_STATUS_SUCCESSFUL":
+                # Extract video URL from metadata
+                metadata = op.get("operation", {}).get("metadata", {})
+                video = metadata.get("video", {})
+                fife_url = video.get("fifeUrl", "")
+                media_gen_id = video.get("mediaGenerationId", "")
+                prompt = video.get("prompt", "")
+                seed = video.get("seed")
+
+                result_data.update({
+                    "fife_url": fife_url,
+                    "media_generation_id": media_gen_id,
+                    "prompt": prompt,
+                    "seed": seed,
+                    "video_metadata": video,
+                })
+
+                logger.info(f"📥 <<< ✅ Video ready! URL={fife_url[:80]}...")
+                return ApiResponse(
+                    success=True,
+                    data=result_data,
+                    message="Video generation completed",
+                )
+
+            elif status == "MEDIA_GENERATION_STATUS_FAILED":
+                error_msg = op.get("error", {}).get("message", "Generation failed")
+                logger.error(f"📥 <<< ❌ Video generation failed: {error_msg}")
+                return ApiResponse(
+                    success=False,
+                    data=result_data,
+                    message=f"Video generation failed: {error_msg}",
+                )
+
+            else:
+                # Still active/processing
+                logger.info(f"📥 <<< ⏳ Status: {status}")
+                return ApiResponse(
+                    success=True,
+                    data=result_data,
+                    message=f"Status: {status}",
+                )
+
+        except urllib.error.HTTPError as e:
+            error_data = ""
+            try:
+                error_data = e.read().decode("utf-8")
+            except Exception:
+                pass
+            logger.error(f"❌ <<< {e.code} Error in check_video_status")
+            return ApiResponse(success=False, message=f"HTTP {e.code}: {error_data[:200]}")
+        except urllib.error.URLError as e:
+            logger.error(f"❌ <<< Connection failed: {e.reason}")
+            return ApiResponse(success=False, message="Cannot connect to Google API")
+        except Exception as e:
+            logger.error(f"❌ <<< check_video_status exception: {e}")
             return ApiResponse(success=False, message=str(e))
 
     def get_credit_status(self, google_access_token: str, timeout: int = 10) -> ApiResponse:

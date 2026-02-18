@@ -55,7 +55,10 @@ class TestCreateWorkflow:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         resp_data = {
-            "result": {"data": {"json": {"result": {"workflowId": "wf-abc-123"}}}}
+            "result": {"data": {"json": {"result": {
+                "projectId": "wf-abc-123",
+                "projectInfo": {"projectTitle": "Feb 18 - 14:20"}
+            }}}}
         }
         mock_urlopen.return_value = _mock_response(resp_data)
 
@@ -107,7 +110,10 @@ class TestCreateWorkflow:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_with_csrf_token(self, mock_urlopen):
         resp_data = {
-            "result": {"data": {"json": {"result": {"workflowId": "wf-123"}}}}
+            "result": {"data": {"json": {"result": {
+                "projectId": "wf-123",
+                "projectInfo": {"projectTitle": "Feb 18 - 14:20"}
+            }}}}
         }
         mock_urlopen.return_value = _mock_response(resp_data)
 
@@ -349,11 +355,7 @@ class TestUploadReferenceImage:
 class TestGenerateImage:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success_without_media(self, mock_urlopen):
-        resp_data = {
-            "imagePanels": [
-                {"generatedImages": [{"image": {"imageBytes": "AAAA"}}]}
-            ]
-        }
+        resp_data = {"responses": [{"videoId": "vid-1"}]}
         mock_urlopen.return_value = _mock_response(resp_data)
 
         client = WorkflowApiClient()
@@ -363,16 +365,12 @@ class TestGenerateImage:
             prompt="A beautiful sunset",
         )
         assert result.success is True
-        assert "encoded_image" in result.data
+        assert "response" in result.data
         assert "workflow_id" in result.data
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success_with_media_inputs(self, mock_urlopen):
-        resp_data = {
-            "imagePanels": [
-                {"generatedImages": [{"image": {"imageBytes": "BBBB"}}]}
-            ]
-        }
+        resp_data = {"responses": [{"videoId": "vid-2"}]}
         mock_urlopen.return_value = _mock_response(resp_data)
 
         media = [
@@ -418,11 +416,7 @@ class TestGenerateImage:
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_custom_timeout(self, mock_urlopen):
-        resp_data = {
-            "imagePanels": [
-                {"generatedImages": [{"image": {"imageBytes": "CCCC"}}]}
-            ]
-        }
+        resp_data = {"responses": [{"videoId": "vid-3"}]}
         mock_urlopen.return_value = _mock_response(resp_data)
 
         client = WorkflowApiClient()
@@ -442,9 +436,10 @@ class TestGenerateImage:
 
 class TestConstants:
     def test_aspect_ratio_map_has_standard_ratios(self):
+        assert "VIDEO_ASPECT_RATIO_LANDSCAPE" in ASPECT_RATIO_MAP
+        assert "VIDEO_ASPECT_RATIO_PORTRAIT" in ASPECT_RATIO_MAP
         assert "16:9" in ASPECT_RATIO_MAP
         assert "9:16" in ASPECT_RATIO_MAP
-        assert "1:1" in ASPECT_RATIO_MAP
 
     def test_media_category_map(self):
         assert WorkflowApiClient.MEDIA_CATEGORY_MAP["title"] == "MEDIA_CATEGORY_SUBJECT"

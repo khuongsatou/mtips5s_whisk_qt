@@ -231,7 +231,7 @@ class ResourceOpsMixin:
             id=self._flow_id_counter,
             name=data.get("name", f"flow_{self._flow_id_counter}"),
             description=data.get("description", ""),
-            type=data.get("type", "WHISK"),
+            type=data.get("type", "VEO3_V2"),
             status=data.get("status", "pending"),
             config=config,
             key_code=data.get("key_code"),
@@ -249,7 +249,7 @@ class ResourceOpsMixin:
 
     def get_flows(
         self, offset: int = 0, limit: int = 20,
-        sort: str = "updated_at:desc", flow_type: str = "WHISK",
+        sort: str = "updated_at:desc", flow_type: str = "VEO3_V2",
     ) -> ApiResponse:
         """Get flows list (mock) with pagination."""
         # Filter by type
@@ -293,7 +293,7 @@ class ResourceOpsMixin:
 
     def test_server_cookie(self, data: dict) -> ApiResponse:
         """Test cookie validity (mock: always returns ok)."""
-        provider = data.get("provider", "WHISK")
+        provider = data.get("provider", "VEO3_V2")
         return ApiResponse(
             success=True,
             data={
@@ -319,9 +319,9 @@ class ResourceOpsMixin:
 
         api_key = ApiKeyItem(
             id=self._api_key_id_counter,
-            label=data.get("label", f"WHISK - mock - {now.isoformat()}"),
+            label=data.get("label", f"VEO3_V2 - mock - {now.isoformat()}"),
             value="ya29.mock_access_token_" + str(self._api_key_id_counter),
-            provider=data.get("provider", "WHISK"),
+            provider=data.get("provider", "VEO3_V2"),
             status="active",
             flow_id=data.get("flow_id"),
             user_id=0,
@@ -354,7 +354,7 @@ class ResourceOpsMixin:
         )
 
     def get_api_keys(
-        self, flow_id: int, provider: str = "WHISK",
+        self, flow_id: int, provider: str = "VEO3_V2",
         offset: int = 0, limit: int = 1000,
         status: str = "ALL", mine: bool = True,
         sort: str = "updated_at:desc",

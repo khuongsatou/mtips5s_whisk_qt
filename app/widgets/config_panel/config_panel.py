@@ -24,15 +24,37 @@ class ConfigPanel(BuildSectionsMixin, SettingsHandlersMixin, QWidget):
     add_to_queue = Signal(dict)  # Emits config dict
     ref_images_picked = Signal(str, int, list)  # category, slot_index (0-based), list of paths
     workflow_requested = Signal()  # Emits when user clicks New Workflow
+    workflow_cleared = Signal()    # Emits when user clicks Clear Workflow
     request_upload_ref = Signal(str, dict)  # (category, {category: [paths]}) for pre-upload
 
-    MODELS = ["IMAGEN_3_5"]
+    TIERS = ["PRO", "ULTRA"]
+    DEFAULT_TIER = "PRO"
+    MODELS_BY_TIER = {
+        "PRO": [
+            ("Veo3.1_Fast", "veo_3_1_t2v_fast"),          # default for PRO
+            ("Veo3.1_Quality", "veo_3_1_t2v"),
+        ],
+        "ULTRA": [
+            ("Veo3.1_Fast_Ultra", "veo_3_1_t2v_fast_ultra"),
+            ("Veo3.1_Fast_Low", "veo_3_1_t2v_fast_ultra_relaxed"),  # default for ULTRA
+            ("Veo3.1_Quality", "veo_3_1_t2v"),
+        ],
+    }
+    DEFAULT_MODEL_BY_TIER = {
+        "PRO": "veo_3_1_t2v_fast",
+        "ULTRA": "veo_3_1_t2v_fast_ultra_relaxed",
+    }
     RATIOS = [
-        ("16:9 Ngang", "16:9"),
-        ("9:16 Dọc", "9:16"),
-        ("1:1 Vuông", "1:1"),
-        ("4:3", "4:3"),
+        ("16:9 Ngang", "VIDEO_ASPECT_RATIO_LANDSCAPE"),
+        ("9:16 Dọc", "VIDEO_ASPECT_RATIO_PORTRAIT"),
     ]
+    GENERATION_MODES = [
+        ("🎬", "Text → Video", "text_to_video"),
+        ("🖼️", "Start → Video", "start_to_video"),
+        ("🔗", "Start End → Video", "start_end_to_video"),
+        ("✂️", "Segment → Video", "segment_to_video"),
+    ]
+    DEFAULT_GENERATION_MODE = "text_to_video"
 
     def __init__(self, translator, parent=None):
         super().__init__(parent)

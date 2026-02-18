@@ -10,8 +10,8 @@ from app.widgets.task_queue_table import TaskQueueTable, ImagePreviewDialog, Cli
 def _sample_task(task_id="t1", stt=1, status="pending", progress=0, **kw):
     """Helper to create a task dict."""
     task = {
-        "id": task_id, "stt": stt, "task_name": "Test", "model": "IMAGEN_3_5",
-        "aspect_ratio": "16:9", "prompt": f"prompt for {task_id}",
+        "id": task_id, "stt": stt, "task_name": "Test", "model": "veo_3_1_t2v_fast_ultra_relaxed",
+        "aspect_ratio": "VIDEO_ASPECT_RATIO_LANDSCAPE", "prompt": f"prompt for {task_id}",
         "status": status, "progress": progress,
         "images_per_prompt": 1,
         "reference_images_by_cat": {},

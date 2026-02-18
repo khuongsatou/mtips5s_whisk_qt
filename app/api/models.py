@@ -16,8 +16,8 @@ class TaskItem:
     id: str
     stt: int                                    # Row number (1-indexed)
     task_name: str = ""                         # e.g. "Task 1"
-    model: str = "IMAGEN_3_5"                  # AI model name
-    aspect_ratio: str = "16:9"                  # e.g. "16:9", "9:16", "1:1"
+    model: str = "veo_3_1_t2v_fast"  # AI model name
+    aspect_ratio: str = "VIDEO_ASPECT_RATIO_LANDSCAPE"  # VIDEO_ASPECT_RATIO_LANDSCAPE or VIDEO_ASPECT_RATIO_PORTRAIT
     quality: str = "1K"                         # "1K", "2K", or "4K"
     reference_images: list[str] = field(default_factory=list)  # Up to 10 paths
     reference_images_by_cat: dict = field(default_factory=lambda: {"title": [], "scene": [], "style": []})  # By category
@@ -73,8 +73,8 @@ class TaskItem:
             id=data.get("id", ""),
             stt=data.get("stt", 0),
             task_name=data.get("task_name", ""),
-            model=data.get("model", "IMAGEN_3_5"),
-            aspect_ratio=data.get("aspect_ratio", "16:9"),
+            model=data.get("model", "veo_3_1_t2v_fast"),
+            aspect_ratio=data.get("aspect_ratio", "VIDEO_ASPECT_RATIO_LANDSCAPE"),
             quality=data.get("quality", "1K"),
             reference_images=data.get("reference_images", []),
             reference_images_by_cat=data.get("reference_images_by_cat", {"title": [], "scene": [], "style": []}),
@@ -276,7 +276,7 @@ class FlowConfig:
     auto_generate: bool = True
     seed: Optional[int] = None
     aspectRatio: str = "VIDEO_ASPECT_RATIO_LANDSCAPE"
-    videoModelKey: str = "veo_3_1_t2v_fast_ultra"
+    videoModelKey: str = "veo_3_1_t2v_fast"
     batch_size: int = 5
     concurrent_limit: int = 3
     auto_download: bool = True
@@ -302,7 +302,7 @@ class FlowConfig:
             auto_generate=data.get("auto_generate", True),
             seed=data.get("seed"),
             aspectRatio=data.get("aspectRatio", "VIDEO_ASPECT_RATIO_LANDSCAPE"),
-            videoModelKey=data.get("videoModelKey", "veo_3_1_t2v_fast_ultra"),
+            videoModelKey=data.get("videoModelKey", "veo_3_1_t2v_fast"),
             batch_size=data.get("batch_size", 5),
             concurrent_limit=data.get("concurrent_limit", 3),
             auto_download=data.get("auto_download", True),
@@ -318,7 +318,7 @@ class FlowItem:
     id: int = 0
     name: str = ""
     description: str = ""
-    type: str = "WHISK"
+    type: str = "VEO3_V2"
     status: str = "pending"
     config: FlowConfig = field(default_factory=FlowConfig)
     key_code: Optional[str] = None
@@ -368,7 +368,7 @@ class FlowItem:
             id=data.get("id", 0),
             name=data.get("name", ""),
             description=data.get("description", ""),
-            type=data.get("type", "WHISK"),
+            type=data.get("type", "VEO3_V2"),
             status=data.get("status", "pending"),
             config=config,
             key_code=data.get("key_code"),
@@ -386,7 +386,7 @@ class ApiKeyItem:
     id: int = 0
     label: str = ""
     value: str = ""
-    provider: str = "WHISK"
+    provider: str = "VEO3_V2"
     status: str = "active"  # active | expired | error
     billing_type: str = "free"
     credit: float = 0.0
@@ -437,7 +437,7 @@ class ApiKeyItem:
             id=data.get("id", 0),
             label=data.get("label", ""),
             value=data.get("value", ""),
-            provider=data.get("provider", "WHISK"),
+            provider=data.get("provider", "VEO3_V2"),
             status=data.get("status", "active"),
             billing_type=data.get("billing_type", "free"),
             credit=data.get("credit", 0.0),

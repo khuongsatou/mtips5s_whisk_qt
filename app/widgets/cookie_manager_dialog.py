@@ -17,7 +17,7 @@ from PySide6.QtGui import QCursor
 
 logger = logging.getLogger("whisk.cookie_dialog")
 
-PROVIDER = "WHISK"
+PROVIDER = "VEO3_V2"
 
 
 class CookieManagerDialog(QDialog):
@@ -25,6 +25,7 @@ class CookieManagerDialog(QDialog):
 
     cookies_changed = Signal()  # Emitted when cookies are added/deleted
     _credit_result = Signal(int, str)  # (row, text) — thread-safe credit update
+    _bridge_cookie_result = Signal(str, str)  # (cookie, error) — thread-safe bridge cookie
 
     def __init__(self, api, translator, parent=None, cookie_api=None, active_flow_id=None, workflow_api=None):
         super().__init__(parent)
@@ -35,12 +36,14 @@ class CookieManagerDialog(QDialog):
         self._active_flow_id = int(active_flow_id) if active_flow_id else None
         self._credit_buttons = {}  # row → QPushButton
         self._credit_result.connect(self._on_credit_result)
+        self._bridge_cookie_result.connect(self._on_bridge_cookie_result)
         self.setObjectName("cookie_manager_dialog")
         self.setWindowTitle(self.translator.t("cookie.title"))
         self.setMinimumSize(700, 500)
         self.setModal(True)
         self._setup_ui()
         self._load_cookies()
+        self._auto_fetch_bridge_cookie()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -82,6 +85,11 @@ class CookieManagerDialog(QDialog):
         # Buttons row
         btn_row = QHBoxLayout()
         btn_row.addStretch()
+
+        self._get_cookie_btn = QPushButton("🍪 Get Cookie")
+        self._get_cookie_btn.setObjectName("cookie_get_btn")
+        self._get_cookie_btn.clicked.connect(self._on_get_cookie_from_bridge)
+        btn_row.addWidget(self._get_cookie_btn)
 
         self._add_btn = QPushButton(f"➕ {self.translator.t('cookie.add_btn')}")
         self._add_btn.setObjectName("cookie_add_btn")
@@ -299,6 +307,62 @@ class CookieManagerDialog(QDialog):
         self._count_label.setText(
             f"{self.translator.t('cookie.count')}: {len(cookies)}"
         )
+
+    # ── Auto-fetch cookie from bridge on dialog open ───────────────────
+
+    def _auto_fetch_bridge_cookie(self):
+        """Silently check bridge for stored cookie and fill input."""
+
+        def _worker():
+            cookie = self._fetch_bridge_cookie_sync()
+            if cookie:
+                self._bridge_cookie_result.emit(cookie, "")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    # ── Get cookie from bridge ────────────────────────────────────────
+
+    def _on_get_cookie_from_bridge(self):
+        """Fetch cookie from captcha bridge server."""
+        self._get_cookie_btn.setEnabled(False)
+        self._get_cookie_btn.setText("⏳ Getting...")
+        self._show_status("🍪 Fetching cookie from bridge...", error=False)
+
+        def _worker():
+            cookie = self._fetch_bridge_cookie_sync()
+            if cookie:
+                self._bridge_cookie_result.emit(cookie, "")
+            else:
+                self._bridge_cookie_result.emit("", "Bridge has no cookie. Start Cookie sync in extension first.")
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @staticmethod
+    def _fetch_bridge_cookie_sync() -> str:
+        """Fetch cookie from bridge (blocking, call from worker thread)."""
+        import urllib.request
+        import json as _json
+        try:
+            req = urllib.request.Request(
+                "http://localhost:18923/bridge/cookie",
+                headers={"Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+            return data.get("cookie", "")
+        except Exception as e:
+            logger.debug(f"🍪 Bridge fetch error: {e}")
+            return ""
+
+    def _on_bridge_cookie_result(self, cookie: str, error: str):
+        """Handle bridge cookie result on main thread (via signal)."""
+        self._get_cookie_btn.setEnabled(True)
+        self._get_cookie_btn.setText("🍪 Get Cookie")
+        if cookie:
+            self._value_input.setPlainText(cookie)
+            self._show_status(f"✅ Cookie loaded ({len(cookie)} chars). Click ➕ Add to save.", error=False)
+        elif error:
+            self._show_status(f"⚠️ {error}", error=True)
 
     # ── Add cookie (test + save) ─────────────────────────────────────
 

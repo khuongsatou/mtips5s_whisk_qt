@@ -92,8 +92,8 @@ class TestAddToQueue:
 
         config = {
             "prompt": "A cat on a table",
-            "model": "IMAGEN_3_5",
-            "aspect_ratio": "16:9",
+            "model": "veo_3_1_t2v_fast_ultra_relaxed",
+            "aspect_ratio": "VIDEO_ASPECT_RATIO_LANDSCAPE",
             "quality": "1K",
             "images_per_prompt": 1,
         }
@@ -106,7 +106,7 @@ class TestAddToQueue:
 
         config = {
             "prompt": "cat\ndog\nbird",
-            "model": "IMAGEN_3_5",
+            "model": "veo_3_1_t2v_fast_ultra_relaxed",
         }
         page._on_add_to_queue(config)
         assert page.api.add_to_queue.call_count == 3

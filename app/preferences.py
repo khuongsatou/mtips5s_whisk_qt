@@ -14,6 +14,7 @@ PREFS_FILE = os.path.join(os.path.expanduser("~"), ".whisk_preferences.json")
 DEFAULTS = {
     "theme": "dark",
     "language": "vi",
+    "captcha_mode": "extension",
 }
 
 

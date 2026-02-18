@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo  Building WhiskDesktop x64 for Windows
+echo  Building Veo3DeskTop x64 for Windows
 echo ========================================
 echo.
 
@@ -52,7 +52,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo PyInstaller build complete: dist\WhiskDesktop\WhiskDesktop.exe
+echo PyInstaller build complete: dist\Veo3DeskTop\Veo3DeskTop.exe
 
 :: Build installer with Inno Setup
 echo.
@@ -76,7 +76,7 @@ if "!ISCC!" == "" (
     echo Download from: https://jrsoftware.org/isdl.php
     echo After installing, run: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" scripts\installer.iss
     echo.
-    echo PyInstaller output is ready at: dist\WhiskDesktop\
+    echo PyInstaller output is ready at: dist\Veo3DeskTop\
     pause
     exit /b 0
 )
@@ -93,7 +93,7 @@ echo.
 echo ============================================
 echo  BUILD COMPLETE!
 echo  Installer: dist\x64_setup.exe
-echo  Portable:  dist\WhiskDesktop\WhiskDesktop.exe
+echo  Portable:  dist\Veo3DeskTop\Veo3DeskTop.exe
 echo ============================================
 echo.
 pause

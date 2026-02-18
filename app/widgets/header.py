@@ -5,7 +5,7 @@ Responsive header bar with page title, user info, navigation buttons,
 theme toggle, and language switcher. Wraps content to prevent overflow.
 """
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QLabel, QPushButton,
+    QWidget, QHBoxLayout, QLabel, QPushButton, QMenu,
     QSizePolicy,
 )
 from PySide6.QtCore import Signal, Qt
@@ -19,11 +19,13 @@ class Header(QWidget):
     cookies_clicked = Signal()
     projects_clicked = Signal()
     tokens_clicked = Signal()
+    captcha_mode_changed = Signal(str)  # "puppeteer" or "extension"
 
     def __init__(self, translator, theme_manager, parent=None):
         super().__init__(parent)
         self.translator = translator
         self.theme_manager = theme_manager
+        self._captcha_mode = "extension"  # default
         self.translator.language_changed.connect(self.retranslate)
         self.setObjectName("header")
         self._setup_ui()
@@ -65,6 +67,15 @@ class Header(QWidget):
         self._cookies_btn.clicked.connect(self.cookies_clicked.emit)
         self._cookies_btn.setVisible(False)
         layout.addWidget(self._cookies_btn)
+
+        # Captcha mode button
+        self._captcha_btn = QPushButton("🔐")
+        self._captcha_btn.setObjectName("captcha_header_btn")
+        self._captcha_btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self._captcha_btn.setCursor(Qt.PointingHandCursor)
+        self._captcha_btn.setToolTip(self.translator.t('captcha.mode_label'))
+        self._captcha_btn.clicked.connect(self._show_captcha_menu)
+        layout.addWidget(self._captcha_btn)
 
         # Tokens button
         self._tokens_btn = QPushButton("🔑")
@@ -182,6 +193,7 @@ class Header(QWidget):
             btn.setChecked(lc == self.translator.current_language)
         self._version_btn.setText(self.translator.t("app.version"))
         self._version_btn.setToolTip(self.translator.t("update.title"))
+        self._captcha_btn.setToolTip(self.translator.t('captcha.mode_label'))
 
     def set_active_project_name(self, name: str):
         """Update the active project label in the header."""
@@ -200,4 +212,55 @@ class Header(QWidget):
     def set_cookie_btn_visible(self, visible: bool):
         """Show/hide the cookie button."""
         self._cookies_btn.setVisible(visible)
+
+    def set_captcha_mode(self, mode: str):
+        """Set the active captcha mode (called from preferences on startup)."""
+        self._captcha_mode = mode
+
+    def _show_captcha_menu(self):
+        """Show popup menu to choose captcha mode."""
+        menu = QMenu(self)
+        menu.setObjectName("captcha_menu")
+        menu.setStyleSheet("""
+            QMenu {
+                background: #1E293B;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 8px 16px;
+                color: #E5E7EB;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background: #7C3AED;
+            }
+        """)
+
+        puppeteer_text = self.translator.t('captcha.puppeteer')
+        extension_text = self.translator.t('captcha.extension')
+
+        # Add checkmark to active mode
+        if self._captcha_mode == "puppeteer":
+            puppeteer_text = f"✓ {puppeteer_text}"
+        else:
+            extension_text = f"✓ {extension_text}"
+
+        act_extension = menu.addAction(extension_text)
+        act_puppeteer = menu.addAction(puppeteer_text)
+
+        act_extension.triggered.connect(lambda: self._set_captcha_mode("extension"))
+        act_puppeteer.triggered.connect(lambda: self._set_captcha_mode("puppeteer"))
+
+        # Show menu below the button
+        menu.exec(self._captcha_btn.mapToGlobal(
+            self._captcha_btn.rect().bottomLeft()
+        ))
+
+    def _set_captcha_mode(self, mode: str):
+        """Handle captcha mode selection."""
+        if mode != self._captcha_mode:
+            self._captcha_mode = mode
+            self.captcha_mode_changed.emit(mode)
 

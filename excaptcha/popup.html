@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 320px;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #1a1a2e;
+        color: #e5e7eb;
+        padding: 16px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .header h1 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #c4b5fd;
+      }
+
+      .status-card {
+        background: #16213e;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .dot.green {
+        background: #22c55e;
+        box-shadow: 0 0 6px #22c55e80;
+      }
+      .dot.red {
+        background: #ef4444;
+        box-shadow: 0 0 6px #ef444480;
+      }
+      .dot.yellow {
+        background: #f59e0b;
+        box-shadow: 0 0 6px #f59e0b80;
+      }
+
+      .status-text {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .error-text {
+        font-size: 11px;
+        color: #f87171;
+        margin-top: 4px;
+      }
+      .stat {
+        font-size: 12px;
+        color: #9ca3af;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-start {
+        background: #7c3aed;
+        color: white;
+      }
+      .btn-start:hover {
+        background: #6d28d9;
+      }
+      .btn-stop {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-stop:hover {
+        background: #dc2626;
+      }
+
+      .btn-test {
+        background: #0891b2;
+        color: white;
+      }
+      .btn-test:hover {
+        background: #0e7490;
+      }
+      .btn-test:disabled,
+      .btn-cookie:disabled {
+        background: #334155;
+        color: #6b7280;
+        cursor: not-allowed;
+      }
+
+      .btn-cookie {
+        background: #d97706;
+        color: white;
+      }
+      .btn-cookie:hover {
+        background: #b45309;
+      }
+
+      .token-section {
+        margin-top: 4px;
+      }
+
+      .token-label {
+        font-size: 11px;
+        color: #9ca3af;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .token-result {
+        width: 100%;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        color: #60a5fa;
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 10px;
+        padding: 8px;
+        resize: none;
+        outline: none;
+        word-break: break-all;
+      }
+
+      .token-result:focus {
+        border-color: #7c3aed;
+      }
+
+      .token-result.success {
+        border-color: #22c55e;
+        color: #4ade80;
+      }
+
+      .token-result.error {
+        border-color: #ef4444;
+        color: #f87171;
+      }
+
+      .footer {
+        text-align: center;
+        font-size: 10px;
+        color: #6b7280;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <span>🔐</span>
+      <h1>Whisk Captcha Bridge</h1>
+    </div>
+    <div id="projectName" style="font-size: 12px; color: #06B6D4; font-weight: 600; margin-bottom: 10px; display: none;"></div>
+
+    <div class="status-card">
+      <div class="status-row">
+        <div class="dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">Checking...</span>
+      </div>
+      <div class="error-text" id="errorText" style="display: none"></div>
+      <div class="stat" id="tokenStat">Tokens sent: 0</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-start" id="toggleBtn">▶ Start</button>
+      <button class="btn btn-test" id="testBtn">🧪 Test</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-cookie" id="cookieSyncBtn">▶ Start Cookie</button>
+      <button class="btn btn-cookie" id="cookieBtn">🍪 Get Cookie</button>
+    </div>
+    <div
+      class="stat"
+      id="cookieSyncStat"
+      style="font-size: 11px; color: #9ca3af; margin-bottom: 8px"
+    ></div>
+
+    <div class="token-section">
+      <div class="token-label"><span>📋</span> <span>Captcha Token:</span></div>
+      <textarea
+        class="token-result"
+        id="tokenResult"
+        rows="4"
+        readonly
+        placeholder="Click 'Test' to get a captcha token..."
+      ></textarea>
+    </div>
+
+    <div class="token-section" style="margin-top: 10px">
+      <div class="token-label"><span>🍪</span> <span>Cookie:</span></div>
+      <textarea
+        class="token-result"
+        id="cookieResult"
+        rows="4"
+        readonly
+        placeholder="Click '🍪 Cookie' to extract browser cookies..."
+      ></textarea>
+    </div>
+
+    <div class="footer">Open <b>labs.google/fx</b> tab to use</div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

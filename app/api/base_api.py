@@ -133,7 +133,7 @@ class BaseApi(ABC):
     @abstractmethod
     def get_flows(
         self, offset: int = 0, limit: int = 20,
-        sort: str = "updated_at:desc", flow_type: str = "WHISK",
+        sort: str = "updated_at:desc", flow_type: str = "VEO3_V2",
     ) -> ApiResponse:
         """Get flows list from the server with pagination."""
 
@@ -153,7 +153,7 @@ class BaseApi(ABC):
 
     @abstractmethod
     def get_api_keys(
-        self, flow_id: int, provider: str = "WHISK",
+        self, flow_id: int, provider: str = "VEO3_V2",
         offset: int = 0, limit: int = 1000,
         status: str = "ALL", mine: bool = True,
         sort: str = "updated_at:desc",

@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "🔨 Building WhiskDesktop.app for macOS..."
+echo "🔨 Building Veo3DeskTop.app for macOS..."
 echo "==========================================="
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_NAME="Whisk Desktop"
-BUNDLE_ID="com.1nutnhanwhisk.desktop"
+BUNDLE_ID="com.1nutnhanveo3.desktop"
 VERSION="1.0.0"
 
 DIST_DIR="$PROJECT_DIR/dist"
@@ -61,7 +61,7 @@ cat > "$CONTENTS/Info.plist" << PLIST
     <key>CFBundleShortVersionString</key>
     <string>$VERSION</string>
     <key>CFBundleExecutable</key>
-    <string>WhiskDesktop</string>
+    <string>Veo3DeskTop</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -148,8 +148,8 @@ cat > "$CONTENTS/Info.plist" << PLIST
 PLIST
 
 # --- Native launcher binary ---
-cp "$SCRIPT_DIR/launcher_bin" "$MACOS/WhiskDesktop"
-chmod +x "$MACOS/WhiskDesktop"
+cp "$SCRIPT_DIR/launcher_bin" "$MACOS/Veo3DeskTop"
+chmod +x "$MACOS/Veo3DeskTop"
 
 # --- Shell launcher script (called by native binary) ---
 cat > "$MACOS/launcher.sh" << 'LAUNCHER'
@@ -217,13 +217,13 @@ rm -rf "$DMG_STAGING"
 mkdir -p "$DMG_STAGING"
 cp -R "$APP_DIR" "$DMG_STAGING/"
 ln -sf /Applications "$DMG_STAGING/Applications"
-hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DIST_DIR/WhiskDesktop.dmg"
+hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DIST_DIR/Veo3DeskTop.dmg"
 rm -rf "$DMG_STAGING"
 
 echo ""
 echo "✅ Build complete!"
 echo "📍 App:  $APP_DIR ($(du -sh "$APP_DIR" | cut -f1))"
-echo "💿 DMG:  $DIST_DIR/WhiskDesktop.dmg ($(du -sh "$DIST_DIR/WhiskDesktop.dmg" | cut -f1))"
+echo "💿 DMG:  $DIST_DIR/Veo3DeskTop.dmg ($(du -sh "$DIST_DIR/Veo3DeskTop.dmg" | cut -f1))"
 echo ""
-echo "To install: open dist/WhiskDesktop.dmg → drag to Applications"
+echo "To install: open dist/Veo3DeskTop.dmg → drag to Applications"
 echo "To run:     open 'dist/$APP_NAME.app'"

@@ -42,3 +42,7 @@ coverage.xml
 
 # Environment (keep .env.dev / .env.prod as templates)
 .env
+
+
+pucaptcha/node_modules
+pucaptcha/package-lock.json

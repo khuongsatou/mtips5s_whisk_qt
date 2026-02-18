@@ -7,7 +7,7 @@ pipeline management, retranslation, and other config panel behaviors.
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QLineEdit, QFileDialog,
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, Slot
 
 
 class SettingsHandlersMixin:
@@ -192,7 +192,7 @@ class SettingsHandlersMixin:
         ref_mode = self._current_ref_mode
         config = {
             "model": self._model_combo.currentData(),
-            "quality": self._selected_quality,
+            "generation_mode": self._selected_gen_mode,
             "aspect_ratio": self._selected_ratio,
             "images_per_prompt": self._images_spin.value(),
             "concurrency": self._concurrency_spin.value(),
@@ -252,12 +252,37 @@ class SettingsHandlersMixin:
         self._selected_ratio = value
         for i, btn in enumerate(self._ratio_buttons):
             btn.setChecked(self._ratio_values[i] == value)
+        self._save_settings()
 
-    def _on_quality_selected(self, value: str):
-        """Handle quality button selection."""
-        self._selected_quality = value
-        for i, btn in enumerate(self._quality_buttons):
-            btn.setChecked(self._quality_values[i] == value)
+
+    def _on_gen_mode_selected(self, value: str):
+        """Handle generation mode toggle selection."""
+        self._selected_gen_mode = value
+        for i, btn in enumerate(self._gen_mode_buttons):
+            btn.setChecked(self._gen_mode_values[i] == value)
+        self._save_settings()
+
+    def _on_tier_selected(self, value: str):
+        """Handle tier toggle selection and repopulate model combo."""
+        self._selected_tier = value
+        for i, btn in enumerate(self._tier_buttons):
+            btn.setChecked(self._tier_values[i] == value)
+        self._populate_model_combo(value)
+        self._save_settings()
+
+    def _populate_model_combo(self, tier: str):
+        """Populate model combo based on selected tier."""
+        self._model_combo.blockSignals(True)
+        self._model_combo.clear()
+        models = self.MODELS_BY_TIER.get(tier, [])
+        for label, data_val in models:
+            self._model_combo.addItem(label, data_val)
+        # Select tier's default model
+        default = self.DEFAULT_MODEL_BY_TIER.get(tier, "")
+        idx = self._model_combo.findData(default)
+        if idx >= 0:
+            self._model_combo.setCurrentIndex(idx)
+        self._model_combo.blockSignals(False)
 
     # --- Persistence ---
 
@@ -265,7 +290,9 @@ class SettingsHandlersMixin:
         """Save current config values to QSettings."""
         s = QSettings("Whisk", "ConfigPanel")
         s.setValue("model", self._model_combo.currentData())
-        s.setValue("quality", self._selected_quality)
+        s.setValue("tier", self._selected_tier)
+        s.setValue("generation_mode", self._selected_gen_mode)
+
         s.setValue("aspect_ratio", self._selected_ratio)
         s.setValue("images_per_prompt", self._images_spin.value())
         s.setValue("concurrency", self._concurrency_spin.value())
@@ -280,6 +307,14 @@ class SettingsHandlersMixin:
         """Load saved config values from QSettings."""
         s = QSettings("Whisk", "ConfigPanel")
 
+        # Tier
+        tier = s.value("tier")
+        if tier and tier in self.TIERS:
+            self._selected_tier = tier
+            for i, val in enumerate(self._tier_values):
+                self._tier_buttons[i].setChecked(val == tier)
+            self._populate_model_combo(tier)
+
         # Model
         model = s.value("model")
         if model:
@@ -288,13 +323,6 @@ class SettingsHandlersMixin:
                 self._model_combo.setCurrentIndex(idx)
 
         # Quality
-        quality = s.value("quality")
-        if quality and quality in ("1K", "2K", "4K"):
-            self._selected_quality = quality
-            for i, val in enumerate(self._quality_values):
-                if val == quality:
-                    self._quality_buttons[i].setChecked(True)
-                    break
 
         # Aspect ratio
         ratio = s.value("aspect_ratio")
@@ -304,6 +332,13 @@ class SettingsHandlersMixin:
                 if val == ratio:
                     self._ratio_buttons[i].setChecked(True)
                     break
+
+        # Generation mode
+        gen_mode = s.value("generation_mode")
+        if gen_mode and gen_mode in self._gen_mode_values:
+            self._selected_gen_mode = gen_mode
+            for i, val in enumerate(self._gen_mode_values):
+                self._gen_mode_buttons[i].setChecked(val == gen_mode)
 
         # Spinners
         ipp = s.value("images_per_prompt", type=int)
@@ -348,16 +383,24 @@ class SettingsHandlersMixin:
 
     def reset_to_defaults(self):
         """Reset all settings to factory defaults."""
-        # Model
-        self._model_combo.setCurrentIndex(0)
-        # Quality
-        self._selected_quality = "1K"
-        for i, val in enumerate(self._quality_values):
-            self._quality_buttons[i].setChecked(val == "1K")
+        # Tier
+        self._selected_tier = self.DEFAULT_TIER
+        for i, val in enumerate(self._tier_values):
+            self._tier_buttons[i].setChecked(val == self.DEFAULT_TIER)
+        self._populate_model_combo(self.DEFAULT_TIER)
+        # Model (select tier default)
+        default_model = self.DEFAULT_MODEL_BY_TIER.get(self.DEFAULT_TIER, "")
+        idx = self._model_combo.findData(default_model)
+        if idx >= 0:
+            self._model_combo.setCurrentIndex(idx)
         # Aspect ratio
-        self._selected_ratio = "16:9"
+        self._selected_ratio = "VIDEO_ASPECT_RATIO_LANDSCAPE"
         for i, val in enumerate(self._ratio_values):
-            self._ratio_buttons[i].setChecked(val == "16:9")
+            self._ratio_buttons[i].setChecked(val == "VIDEO_ASPECT_RATIO_LANDSCAPE")
+        # Generation mode
+        self._selected_gen_mode = self.DEFAULT_GENERATION_MODE
+        for i, val in enumerate(self._gen_mode_values):
+            self._gen_mode_buttons[i].setChecked(val == self.DEFAULT_GENERATION_MODE)
         # Spinners
         self._images_spin.setValue(1)
         self._concurrency_spin.setValue(1)
@@ -389,8 +432,9 @@ class SettingsHandlersMixin:
         self._prompt_section.set_title(f"✍️ {self.translator.t('config.section_prompt')}")
         self._output_section.set_title(f"📁 {self.translator.t('config.section_output')}")
         self._model_label.setText(f"🤖 {self.translator.t('config.model')}")
-        self._quality_label.setText(f"✨ {self.translator.t('config.quality')}")
+
         self._ratio_label.setText(f"📐 {self.translator.t('config.aspect_ratio')}")
+        self._gen_mode_label.setText(f"🎬 {self.translator.t('config.generation_mode')}")
         self._images_label.setText(self.translator.t('config.images_per_prompt'))
         self._concurrency_label.setText(self.translator.t('config.concurrency'))
         self._delay_label.setText(self.translator.t('config.delay'))
@@ -429,6 +473,12 @@ class SettingsHandlersMixin:
     def set_workflow_btn_enabled(self, enabled: bool):
         """Enable/disable the New Workflow button."""
         self._workflow_btn.setEnabled(enabled)
+
+    @Slot()
+    def _restore_workflow_btn(self):
+        """Restore the New Workflow button to its default state (thread-safe slot)."""
+        self._workflow_btn.setEnabled(True)
+        self._workflow_btn.setText("🆕 New Workflow")
 
     # ── Pipeline Step Management ──
 

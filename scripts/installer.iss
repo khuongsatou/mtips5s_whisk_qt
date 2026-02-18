@@ -10,7 +10,7 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "1NutNhan"
 #define MyAppURL "https://github.com/1nutnhan"
-#define MyAppExeName "WhiskDesktop.exe"
+#define MyAppExeName "Veo3DeskTop.exe"
 
 [Setup]
 ; Application info
@@ -76,7 +76,7 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 ; Main application files from PyInstaller output
-Source: "..\dist\WhiskDesktop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\Veo3DeskTop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

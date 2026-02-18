@@ -8,7 +8,7 @@ Bundles QSS themes and JSON translation files.
 import sys
 
 block_cipher = None
-app_name = "WhiskDesktop"
+app_name = "Veo3DeskTop"
 
 a = Analysis(
     ['main.py'],
@@ -60,7 +60,7 @@ if sys.platform == 'darwin':
         coll,
         name=f'{app_name}.app',
         icon='resources/icon.icns',
-        bundle_identifier='com.1nutnhanwhisk.desktop',
+        bundle_identifier='com.1nutnhanveo3.desktop',
         info_plist={
             'CFBundleShortVersionString': '1.0.0',
             'CFBundleName': 'Whisk Desktop',

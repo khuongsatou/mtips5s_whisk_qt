@@ -152,33 +152,20 @@ class TestPromptCount:
 # ── Selection Handlers ────────────────────────────────────────────
 
 
-class TestSelectionHandlers:
     def test_ratio_selected(self, panel):
-        panel._on_ratio_selected("9:16")
-        assert panel._selected_ratio == "9:16"
-
-    def test_quality_selected(self, panel):
-        panel._on_quality_selected("1K")
-        assert panel._selected_quality == "1K"
-
+        panel._on_ratio_selected("VIDEO_ASPECT_RATIO_PORTRAIT")
+        assert panel._selected_ratio == "VIDEO_ASPECT_RATIO_PORTRAIT"
 
 # ── Settings Persistence ──────────────────────────────────────────
 
 
 class TestSettingsPersistence:
-    def test_save_and_load_quality(self, panel):
-        panel._selected_quality = "1K"
-        panel._save_settings()
-        panel._selected_quality = "2K"  # Change it
-        panel._load_settings()
-        assert panel._selected_quality == "1K"
-
     def test_save_and_load_ratio(self, panel):
-        panel._on_ratio_selected("9:16")
-        panel._save_settings()
-        panel._on_ratio_selected("16:9")  # Change
+        panel._on_ratio_selected("VIDEO_ASPECT_RATIO_PORTRAIT")
+        # Change in-memory only (don't call _on_ratio_selected which auto-saves)
+        panel._selected_ratio = "VIDEO_ASPECT_RATIO_LANDSCAPE"
         panel._load_settings()
-        assert panel._selected_ratio == "9:16"
+        assert panel._selected_ratio == "VIDEO_ASPECT_RATIO_PORTRAIT"
 
     def test_save_and_load_prefix(self, panel):
         panel._prefix_input.setText("my_prefix")
@@ -228,15 +215,13 @@ class TestClearAndReset:
         assert panel._ref_images == {}
 
     def test_reset_to_defaults(self, panel):
-        panel._selected_quality = "2K"
-        panel._selected_ratio = "1:1"
+        panel._selected_ratio = "VIDEO_ASPECT_RATIO_PORTRAIT"
         panel._images_spin.setValue(5)
         panel._prefix_input.setText("test")
 
         panel.reset_to_defaults()
 
-        assert panel._selected_quality == "1K"
-        assert panel._selected_ratio == "16:9"
+        assert panel._selected_ratio == "VIDEO_ASPECT_RATIO_LANDSCAPE"
         assert panel._images_spin.value() == 1
         assert panel._prefix_input.text() == ""
 
@@ -320,16 +305,14 @@ class TestRetranslation:
 class TestOnAdd:
     def test_emits_add_to_queue(self, panel, qtbot):
         panel._prompt_input.setPlainText("test prompt")
-        panel._selected_ratio = "16:9"
-        panel._selected_quality = "1K"
+        panel._selected_ratio = "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
         with qtbot.waitSignal(panel.add_to_queue, timeout=1000) as sig:
             panel._on_add()
 
         config = sig.args[0]
         assert config["prompt"] == "test prompt"
-        assert config["aspect_ratio"] == "16:9"
-        assert config["quality"] == "1K"
+        assert config["aspect_ratio"] == "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
     def test_on_add_clears_prompt(self, panel, qtbot):
         panel._prompt_input.setPlainText("test")

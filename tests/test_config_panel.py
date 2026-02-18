@@ -18,13 +18,11 @@ class TestConfigPanelDefaults:
         qtbot.addWidget(self.panel)
 
     def test_default_model(self):
-        assert self.panel._model_combo.currentData() == "IMAGEN_3_5"
+        assert self.panel._model_combo.currentData() == "veo_3_1_t2v_fast"
 
-    def test_default_quality(self):
-        assert self.panel._selected_quality == "1K"
 
     def test_default_ratio(self):
-        assert self.panel._selected_ratio == "16:9"
+        assert self.panel._selected_ratio == "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
     def test_default_images_per_prompt(self):
         assert self.panel._images_spin.value() == 1
@@ -63,11 +61,9 @@ class TestConfigPanelSections:
     def test_has_pipeline_circles(self):
         assert len(self.panel._pipeline_circles) == 5
 
-    def test_has_quality_buttons(self):
-        assert len(self.panel._quality_buttons) == 3
 
     def test_has_ratio_buttons(self):
-        assert len(self.panel._ratio_buttons) == 3
+        assert len(self.panel._ratio_buttons) == 2
 
     def test_has_ref_categories(self):
         assert set(self.panel._ref_slot_rows.keys()) == {"title", "scene", "style"}
@@ -90,7 +86,7 @@ class TestConfigPanelSections:
 
 
 class TestConfigPanelSelectors:
-    """Test quality and ratio selection logic."""
+    """Test ratio selection logic."""
 
     @pytest.fixture(autouse=True)
     def setup(self, qtbot, translator):
@@ -98,27 +94,12 @@ class TestConfigPanelSelectors:
         self.panel = ConfigPanel(translator)
         qtbot.addWidget(self.panel)
 
-    def test_select_quality_2k(self):
-        self.panel._on_quality_selected("2K")
-        assert self.panel._selected_quality == "2K"
-        assert self.panel._quality_buttons[1].isChecked()
-        assert not self.panel._quality_buttons[0].isChecked()
 
-    def test_select_quality_4k(self):
-        self.panel._on_quality_selected("4K")
-        assert self.panel._selected_quality == "4K"
-        assert self.panel._quality_buttons[2].isChecked()
-
-    def test_select_ratio_1_1(self):
-        self.panel._on_ratio_selected("1:1")
-        assert self.panel._selected_ratio == "1:1"
-        assert self.panel._ratio_buttons[2].isChecked()
-        assert not self.panel._ratio_buttons[0].isChecked()
-
-    def test_select_ratio_9_16(self):
-        self.panel._on_ratio_selected("9:16")
-        assert self.panel._selected_ratio == "9:16"
+    def test_select_ratio_portrait(self):
+        self.panel._on_ratio_selected("VIDEO_ASPECT_RATIO_PORTRAIT")
+        assert self.panel._selected_ratio == "VIDEO_ASPECT_RATIO_PORTRAIT"
         assert self.panel._ratio_buttons[1].isChecked()
+        assert not self.panel._ratio_buttons[0].isChecked()
 
 
 class TestConfigPanelPipeline:
@@ -175,22 +156,16 @@ class TestConfigPanelClearAndReset:
         assert self.panel._ref_images == {}
 
     def test_clear_inputs_keeps_config(self):
-        self.panel._on_quality_selected("4K")
         self.panel._images_spin.setValue(4)
         self.panel.clear_inputs()
-        # Quality and spinner should remain
-        assert self.panel._selected_quality == "4K"
+        # Spinner should remain
         assert self.panel._images_spin.value() == 4
 
-    def test_reset_to_defaults_resets_quality(self):
-        self.panel._on_quality_selected("4K")
-        self.panel.reset_to_defaults()
-        assert self.panel._selected_quality == "1K"
 
     def test_reset_to_defaults_resets_ratio(self):
-        self.panel._on_ratio_selected("1:1")
+        self.panel._on_ratio_selected("VIDEO_ASPECT_RATIO_LANDSCAPE")
         self.panel.reset_to_defaults()
-        assert self.panel._selected_ratio == "16:9"
+        assert self.panel._selected_ratio == "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
     def test_reset_to_defaults_resets_spinners(self):
         self.panel._images_spin.setValue(10)
@@ -226,8 +201,7 @@ class TestConfigPanelEmitSignal:
     def test_on_add_emits_signal_with_config(self, qtbot):
         self.panel._prompt_input.setPlainText("my test prompt")
         self.panel._images_spin.setValue(3)
-        self.panel._on_quality_selected("2K")
-        self.panel._on_ratio_selected("1:1")
+        self.panel._on_ratio_selected("VIDEO_ASPECT_RATIO_LANDSCAPE")
 
         with qtbot.waitSignal(self.panel.add_to_queue, timeout=1000) as blocker:
             self.panel._on_add()
@@ -235,9 +209,8 @@ class TestConfigPanelEmitSignal:
         config = blocker.args[0]
         assert config["prompt"] == "my test prompt"
         assert config["images_per_prompt"] == 3
-        assert config["quality"] == "2K"
-        assert config["aspect_ratio"] == "1:1"
-        assert config["model"] == "IMAGEN_3_5"
+        assert config["aspect_ratio"] == "VIDEO_ASPECT_RATIO_LANDSCAPE"
+        assert config["model"] == "veo_3_1_t2v_fast"
 
     def test_on_add_clears_prompt_after_emit(self):
         self.panel._prompt_input.setPlainText("will be cleared")

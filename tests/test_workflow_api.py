@@ -39,24 +39,26 @@ class TestWorkflowApiInit:
 
 class TestAspectRatioMap:
     def test_all_ratios_present(self):
-        for ratio in ["16:9", "9:16", "1:1", "4:3", "3:4"]:
+        for ratio in ["VIDEO_ASPECT_RATIO_LANDSCAPE", "VIDEO_ASPECT_RATIO_PORTRAIT", "16:9", "9:16"]:
             assert ratio in ASPECT_RATIO_MAP
 
     def test_landscape(self):
-        assert ASPECT_RATIO_MAP["16:9"] == "IMAGE_ASPECT_RATIO_LANDSCAPE"
+        assert ASPECT_RATIO_MAP["VIDEO_ASPECT_RATIO_LANDSCAPE"] == "VIDEO_ASPECT_RATIO_LANDSCAPE"
+        assert ASPECT_RATIO_MAP["16:9"] == "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
     def test_portrait(self):
-        assert ASPECT_RATIO_MAP["9:16"] == "IMAGE_ASPECT_RATIO_PORTRAIT"
-
-    def test_square(self):
-        assert ASPECT_RATIO_MAP["1:1"] == "IMAGE_ASPECT_RATIO_SQUARE"
+        assert ASPECT_RATIO_MAP["VIDEO_ASPECT_RATIO_PORTRAIT"] == "VIDEO_ASPECT_RATIO_PORTRAIT"
+        assert ASPECT_RATIO_MAP["9:16"] == "VIDEO_ASPECT_RATIO_PORTRAIT"
 
 
 class TestCreateWorkflow:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         resp_body = {
-            "result": {"data": {"json": {"result": {"workflowId": "wf-123"}}}}
+            "result": {"data": {"json": {"result": {
+                "projectId": "wf-123",
+                "projectInfo": {"projectTitle": "Feb 18 - 14:20"}
+            }}}}
         }
         mock_urlopen.return_value = _mock_response(resp_body)
         c = WorkflowApiClient()
@@ -67,7 +69,10 @@ class TestCreateWorkflow:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_with_csrf_token(self, mock_urlopen):
         resp_body = {
-            "result": {"data": {"json": {"result": {"workflowId": "wf-456"}}}}
+            "result": {"data": {"json": {"result": {
+                "projectId": "wf-456",
+                "projectInfo": {"projectTitle": "Feb 18 - 14:20"}
+            }}}}
         }
         mock_urlopen.return_value = _mock_response(resp_body)
         c = WorkflowApiClient()
@@ -80,7 +85,7 @@ class TestCreateWorkflow:
         c = WorkflowApiClient()
         result = c.create_workflow("tok")
         assert result.success is False
-        assert "No workflowId" in result.message
+        assert "No projectId" in result.message
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_http_error(self, mock_urlopen):
@@ -149,15 +154,7 @@ class TestGenerateImage:
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         body = {
-            "imagePanels": [{
-                "generatedImages": [{
-                    "encodedImage": "base64data",
-                    "seed": 42,
-                    "mediaGenerationId": "mg-1",
-                    "prompt": "test",
-                }]
-            }],
-            "workflowId": "wf-1",
+            "responses": [{"videoId": "vid-1"}],
         }
         mock_urlopen.return_value = _mock_response(body)
         c = WorkflowApiClient()
@@ -165,65 +162,42 @@ class TestGenerateImage:
         result = c.generate_image("gtoken", "wf-1", "test prompt")
 
         assert result.success is True
-        assert result.data["encoded_image"] == "base64data"
-        assert result.data["seed"] == 42
-
-    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
-    def test_no_image_panels(self, mock_urlopen):
-        mock_urlopen.return_value = _mock_response({"imagePanels": []})
-        c = WorkflowApiClient()
-        result = c.generate_image("gtoken", "wf-1", "test")
-        assert result.success is False
-        assert "No imagePanels" in result.message
-
-    @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
-    def test_no_generated_images(self, mock_urlopen):
-        mock_urlopen.return_value = _mock_response({
-            "imagePanels": [{"generatedImages": []}]
-        })
-        c = WorkflowApiClient()
-        result = c.generate_image("gtoken", "wf-1", "test")
-        assert result.success is False
-        assert "No generatedImages" in result.message
+        assert result.data["response"] == body
+        assert result.data["prompt"] == "test prompt"
+        assert result.data["workflow_id"] == "wf-1"
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_custom_aspect_ratio(self, mock_urlopen):
-        mock_urlopen.return_value = _mock_response({
-            "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
-        })
+        mock_urlopen.return_value = _mock_response({"responses": []})
         c = WorkflowApiClient()
         c.generate_image("gtoken", "wf-1", "test", aspect_ratio="9:16")
 
         call_args = mock_urlopen.call_args
         req = call_args[0][0]
         payload = json.loads(req.data.decode("utf-8"))
-        assert payload["imageModelSettings"]["aspectRatio"] == "IMAGE_ASPECT_RATIO_PORTRAIT"
+        assert payload["requests"][0]["aspectRatio"] == "VIDEO_ASPECT_RATIO_PORTRAIT"
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_custom_seed(self, mock_urlopen):
-        mock_urlopen.return_value = _mock_response({
-            "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
-        })
+        mock_urlopen.return_value = _mock_response({"responses": []})
         c = WorkflowApiClient()
         c.generate_image("gtoken", "wf-1", "test", seed=99999)
 
         call_args = mock_urlopen.call_args
         req = call_args[0][0]
         payload = json.loads(req.data.decode("utf-8"))
-        assert payload["seed"] == 99999
+        assert payload["requests"][0]["seed"] == 99999
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_unknown_aspect_ratio_fallback(self, mock_urlopen):
-        mock_urlopen.return_value = _mock_response({
-            "imagePanels": [{"generatedImages": [{"encodedImage": "x"}]}]
-        })
+        mock_urlopen.return_value = _mock_response({"responses": []})
         c = WorkflowApiClient()
         c.generate_image("gtoken", "wf-1", "test", aspect_ratio="99:1")
 
         call_args = mock_urlopen.call_args
         req = call_args[0][0]
         payload = json.loads(req.data.decode("utf-8"))
-        assert payload["imageModelSettings"]["aspectRatio"] == "IMAGE_ASPECT_RATIO_LANDSCAPE"
+        assert payload["requests"][0]["aspectRatio"] == "VIDEO_ASPECT_RATIO_LANDSCAPE"
 
     @patch("app.api.workflow_api.workflow_api.urllib.request.urlopen")
     def test_http_error(self, mock_urlopen):

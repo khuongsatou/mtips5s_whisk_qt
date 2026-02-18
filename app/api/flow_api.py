@@ -43,14 +43,14 @@ class FlowApiClient:
 
         Args:
             data: Flow creation payload. Must include at least 'name'.
-                  If 'type' is not provided, defaults to 'WHISK'.
+                  If 'type' is not provided, defaults to 'VEO3_V2'.
 
         Returns:
             ApiResponse with the created flow data on success.
         """
-        # Ensure type is WHISK
+        # Ensure type is VEO3_V2
         if "type" not in data:
-            data["type"] = "WHISK"
+            data["type"] = "VEO3_V2"
 
         url = flow_url("flows")
         payload = json.dumps(data).encode("utf-8")
@@ -90,7 +90,7 @@ class FlowApiClient:
         offset: int = 0,
         limit: int = 20,
         sort: str = "updated_at:desc",
-        flow_type: str = "WHISK",
+        flow_type: str = "VEO3_V2",
     ) -> ApiResponse:
         """
         GET /flows?offset=&limit=&sort=&type= — List flows with pagination.

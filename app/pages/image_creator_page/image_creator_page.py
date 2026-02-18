@@ -31,6 +31,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
     """Main image creator page with config panel, queue table, and toolbar."""
 
     queue_data_changed = Signal()  # Emitted when queue data is refreshed
+    _workflow_result_ready = Signal(dict)  # Cross-thread workflow result delivery
 
     MAX_RETRIES = 2  # Max retry attempts (3 total = 1 original + 2 retries)
 
@@ -139,6 +140,13 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         row.setContentsMargins(8, 6, 8, 4)
         row.setSpacing(8)
 
+        # Test Captcha button
+        self._test_captcha_btn = QPushButton("🔐")
+        self._test_captcha_btn.setObjectName("toolbar_run_button")
+        self._test_captcha_btn.setCursor(Qt.PointingHandCursor)
+        self._test_captcha_btn.setToolTip("Test Captcha Token")
+        row.addWidget(self._test_captcha_btn)
+
         # Run Selected button
         self._run_selected_btn = QPushButton("▶")
         self._run_selected_btn.setObjectName("toolbar_run_button")
@@ -157,7 +165,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._search_input = QLineEdit()
         self._search_input.setObjectName("toolbar_search")
         self._search_input.setPlaceholderText(
-            f"🔍 {self.translator.t('toolbar.search_prompt')}"
+            f"🔍 {self.translator.t('toolbar.search_prompt')} / task ID / status"
         )
         self._search_input.setClearButtonEnabled(True)
         row.addWidget(self._search_input, 1)
@@ -215,7 +223,9 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._config.add_to_queue.connect(self._on_add_to_queue)
         self._config.ref_images_picked.connect(self._on_ref_images_picked)
         self._config.workflow_requested.connect(self._on_workflow_requested)
+        self._config.workflow_cleared.connect(self._on_workflow_cleared)
         self._config.request_upload_ref.connect(self._on_request_upload_ref)
+        self._workflow_result_ready.connect(self._apply_workflow_result)
 
         # Table selection
         self._table.task_selected.connect(self._on_selection_changed)
@@ -225,6 +235,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._toolbar.delete_selected.connect(self._on_delete_selected)
         self._toolbar.delete_all.connect(self._on_delete_all)
         self._toolbar.retry_errors.connect(self._on_retry_errors)
+        self._test_captcha_btn.clicked.connect(self._on_test_captcha)
         self._run_selected_btn.clicked.connect(self._on_run_selected)
         self._run_all_btn.clicked.connect(self._on_run_all)
         self._toolbar.clear_checkpoint.connect(self._on_clear_checkpoint)
@@ -246,9 +257,10 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
             )
         )
 
-        # Table download + open folder
+        # Table download + open folder + manual refresh
         self._table.download_clicked.connect(self._on_download)
         self._table.open_folder_clicked.connect(self._on_open_folder)
+        self._table.refresh_clicked.connect(self._on_refresh_task)
 
         # Table prompt editing
         self._table.prompt_edited.connect(self._on_prompt_edited)

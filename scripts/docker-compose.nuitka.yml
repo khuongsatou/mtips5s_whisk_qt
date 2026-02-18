@@ -5,7 +5,7 @@
 #   docker compose -f scripts/docker-compose.nuitka.yml up --build
 #
 # Output:
-#   dist/WhiskDesktop/WhiskDesktop.exe (native compiled)
+#   dist/Veo3DeskTop/Veo3DeskTop.exe (native compiled)
 # ============================================================
 
 services:
@@ -21,9 +21,9 @@ services:
     command: >
       bash -c "
         echo '✅ Copying Nuitka output...' &&
-        cp -r /src/dist/main.dist /output/WhiskDesktop &&
+        cp -r /src/dist/main.dist /output/Veo3DeskTop &&
         echo '========================================' &&
-        echo ' Output: dist/WhiskDesktop/WhiskDesktop.exe' &&
+        echo ' Output: dist/Veo3DeskTop/Veo3DeskTop.exe' &&
         echo ' 🛡️  Native compiled (anti-decompile)' &&
         echo '========================================'
       "

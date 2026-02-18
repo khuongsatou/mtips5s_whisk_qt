@@ -85,6 +85,15 @@ class BuildSectionsMixin:
         self._workflow_btn.setCursor(Qt.PointingHandCursor)
         self._workflow_btn.clicked.connect(self.workflow_requested.emit)
         workflow_row.addWidget(self._workflow_btn)
+
+        self._clear_workflow_btn = QPushButton("🗑️")
+        self._clear_workflow_btn.setObjectName("danger_button")
+        self._clear_workflow_btn.setCursor(Qt.PointingHandCursor)
+        self._clear_workflow_btn.setToolTip("Clear saved workflow/project ID")
+        self._clear_workflow_btn.setFixedWidth(40)
+        self._clear_workflow_btn.clicked.connect(self.workflow_cleared.emit)
+        workflow_row.addWidget(self._clear_workflow_btn)
+
         self._model_section.add_layout(workflow_row)
 
         # Workflow status label
@@ -94,42 +103,30 @@ class BuildSectionsMixin:
         self._workflow_status.setVisible(False)
         self._model_section.add_widget(self._workflow_status)
 
-        # Model combo
-        self._model_label = QLabel(f"🤖 {self.translator.t('config.model')}")
-        self._model_label.setObjectName("config_label")
-        self._model_section.add_widget(self._model_label)
+        # Tier toggle (PRO / ULTRA)
+        self._tier_label = QLabel("🏷️ Tier")
+        self._tier_label.setObjectName("config_label")
+        self._model_section.add_widget(self._tier_label)
 
-        self._model_combo = QComboBox()
-        self._model_combo.setObjectName("config_combo")
-        for model in self.MODELS:
-            self._model_combo.addItem(model, model)
-        self._model_section.add_widget(self._model_combo)
+        tier_container = QWidget()
+        tier_container.setObjectName("tier_container")
+        tier_row = QHBoxLayout(tier_container)
+        tier_row.setContentsMargins(0, 2, 0, 2)
+        tier_row.setSpacing(6)
 
-        # Quality tier selector
-        self._quality_label = QLabel(f"✨ {self.translator.t('config.quality')}")
-        self._quality_label.setObjectName("config_label")
-        self._model_section.add_widget(self._quality_label)
+        self._tier_buttons: list[QPushButton] = []
+        self._tier_values: list[str] = []
+        self._selected_tier = self.DEFAULT_TIER
 
-        quality_container = QWidget()
-        quality_container.setObjectName("quality_container")
-        quality_row = QHBoxLayout(quality_container)
-        quality_row.setContentsMargins(0, 2, 0, 2)
-        quality_row.setSpacing(6)
-
-        self._quality_buttons: list[QPushButton] = []
-        self._quality_values: list[str] = []
-
-        quality_defs = [
-            ("1K", "⭐", "Standard"),
-            ("2K", "⭐⭐", "HD"),
-            ("4K", "💎", "Ultra"),
+        tier_defs = [
+            ("PRO", "⚡", "PRO"),
+            ("ULTRA", "💎", "ULTRA"),
         ]
-
-        for value, icon, desc in quality_defs:
+        for value, icon, desc in tier_defs:
             btn = QPushButton()
             btn.setObjectName("ratio_option_btn")
             btn.setCheckable(True)
-            btn.setFixedHeight(56)
+            btn.setFixedHeight(48)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setToolTip(f"{value} — {desc}")
 
@@ -149,19 +146,27 @@ class BuildSectionsMixin:
             btn_layout.addWidget(text_label, 0, Qt.AlignCenter)
 
             btn.clicked.connect(
-                lambda checked, v=value: self._on_quality_selected(v)
+                lambda checked, v=value: self._on_tier_selected(v)
             )
-            quality_row.addWidget(btn)
-            self._quality_buttons.append(btn)
-            self._quality_values.append(value)
+            tier_row.addWidget(btn)
+            self._tier_buttons.append(btn)
+            self._tier_values.append(value)
 
-        self._selected_quality = "1K"
-        self._quality_buttons[0].setChecked(True)
-        # Disable HD and Ultra — not available yet
-        for i, val in enumerate(self._quality_values):
-            if val in ("2K", "4K"):
-                self._quality_buttons[i].setEnabled(False)
-        self._model_section.add_widget(quality_container)
+        # Check default tier button
+        for i, val in enumerate(self._tier_values):
+            self._tier_buttons[i].setChecked(val == self._selected_tier)
+        self._model_section.add_widget(tier_container)
+
+        # Model combo
+        self._model_label = QLabel(f"🤖 {self.translator.t('config.model')}")
+        self._model_label.setObjectName("config_label")
+        self._model_section.add_widget(self._model_label)
+
+        self._model_combo = QComboBox()
+        self._model_combo.setObjectName("config_combo")
+        self._populate_model_combo(self._selected_tier)
+        self._model_section.add_widget(self._model_combo)
+
 
         # Aspect ratio selector
         self._ratio_label = QLabel(f"📐 {self.translator.t('config.aspect_ratio')}")
@@ -178,9 +183,8 @@ class BuildSectionsMixin:
         self._ratio_values: list[str] = []
 
         ratio_defs = [
-            ("16:9", "16:9", 16, 9),
-            ("9:16", "9:16", 9, 16),
-            ("1:1",  "1:1",  1, 1),
+            ("16:9", "VIDEO_ASPECT_RATIO_LANDSCAPE", 16, 9),
+            ("9:16", "VIDEO_ASPECT_RATIO_PORTRAIT", 9, 16),
         ]
 
         for label, value, w_ratio, h_ratio in ratio_defs:
@@ -217,9 +221,62 @@ class BuildSectionsMixin:
             self._ratio_buttons.append(btn)
             self._ratio_values.append(value)
 
-        self._selected_ratio = "16:9"
+        self._selected_ratio = "VIDEO_ASPECT_RATIO_LANDSCAPE"
         self._ratio_buttons[0].setChecked(True)
         self._model_section.add_widget(ratio_container)
+
+        # Generation mode selector
+        self._gen_mode_label = QLabel(f"🎬 {self.translator.t('config.generation_mode')}")
+        self._gen_mode_label.setObjectName("config_label")
+        self._model_section.add_widget(self._gen_mode_label)
+
+        from PySide6.QtWidgets import QGridLayout
+        gen_mode_container = QWidget()
+        gen_mode_container.setObjectName("gen_mode_container")
+        gen_mode_grid = QGridLayout(gen_mode_container)
+        gen_mode_grid.setContentsMargins(0, 2, 0, 2)
+        gen_mode_grid.setSpacing(6)
+
+        self._gen_mode_buttons: list[QPushButton] = []
+        self._gen_mode_values: list[str] = []
+        self._selected_gen_mode = self.DEFAULT_GENERATION_MODE
+
+        for idx, (icon, desc, value) in enumerate(self.GENERATION_MODES):
+            btn = QPushButton()
+            btn.setObjectName("ratio_option_btn")
+            btn.setCheckable(True)
+            btn.setFixedHeight(48)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(desc)
+
+            btn_layout = QVBoxLayout(btn)
+            btn_layout.setContentsMargins(4, 6, 4, 4)
+            btn_layout.setSpacing(2)
+            btn_layout.setAlignment(Qt.AlignCenter)
+
+            icon_label = QLabel(icon)
+            icon_label.setObjectName("ratio_option_text")
+            icon_label.setAlignment(Qt.AlignCenter)
+            btn_layout.addWidget(icon_label, 0, Qt.AlignCenter)
+
+            text_label = QLabel(desc)
+            text_label.setObjectName("ratio_option_text")
+            text_label.setAlignment(Qt.AlignCenter)
+            text_label.setStyleSheet("font-size: 10px;")
+            btn_layout.addWidget(text_label, 0, Qt.AlignCenter)
+
+            btn.clicked.connect(
+                lambda checked, v=value: self._on_gen_mode_selected(v)
+            )
+            row, col = divmod(idx, 2)
+            gen_mode_grid.addWidget(btn, row, col)
+            self._gen_mode_buttons.append(btn)
+            self._gen_mode_values.append(value)
+
+        # Check default button
+        for i, val in enumerate(self._gen_mode_values):
+            self._gen_mode_buttons[i].setChecked(val == self._selected_gen_mode)
+        self._model_section.add_widget(gen_mode_container)
 
         layout.addWidget(self._model_section)
 
@@ -318,6 +375,58 @@ class BuildSectionsMixin:
         self._delay_max.setFixedWidth(72)
         delay_layout.addWidget(self._delay_max)
         self._exec_section.add_widget(delay_card)
+
+        # Poll interval
+        poll_card = QWidget()
+        poll_card.setObjectName("exec_row_card")
+        poll_layout = QHBoxLayout(poll_card)
+        poll_layout.setContentsMargins(10, 8, 10, 8)
+        poll_layout.setSpacing(8)
+
+        poll_icon = QLabel("📡")
+        poll_icon.setObjectName("exec_row_icon")
+        poll_icon.setFixedWidth(24)
+        poll_icon.setAlignment(Qt.AlignCenter)
+        poll_layout.addWidget(poll_icon)
+
+        self._poll_label = QLabel("Poll Interval")
+        self._poll_label.setObjectName("exec_row_label")
+        poll_layout.addWidget(self._poll_label, 1)
+
+        self._poll_interval_spin = QSpinBox()
+        self._poll_interval_spin.setObjectName("config_spin")
+        self._poll_interval_spin.setRange(5, 120)
+        self._poll_interval_spin.setValue(30)
+        self._poll_interval_spin.setSuffix("s")
+        self._poll_interval_spin.setFixedWidth(72)
+        poll_layout.addWidget(self._poll_interval_spin)
+        self._exec_section.add_widget(poll_card)
+
+        # API Timeout
+        timeout_card = QWidget()
+        timeout_card.setObjectName("exec_row_card")
+        timeout_layout = QHBoxLayout(timeout_card)
+        timeout_layout.setContentsMargins(10, 8, 10, 8)
+        timeout_layout.setSpacing(8)
+
+        timeout_icon = QLabel("⏱")
+        timeout_icon.setObjectName("exec_row_icon")
+        timeout_icon.setFixedWidth(24)
+        timeout_icon.setAlignment(Qt.AlignCenter)
+        timeout_layout.addWidget(timeout_icon)
+
+        self._timeout_label = QLabel("API Timeout")
+        self._timeout_label.setObjectName("exec_row_label")
+        timeout_layout.addWidget(self._timeout_label, 1)
+
+        self._api_timeout_spin = QSpinBox()
+        self._api_timeout_spin.setObjectName("config_spin")
+        self._api_timeout_spin.setRange(30, 180)
+        self._api_timeout_spin.setValue(60)
+        self._api_timeout_spin.setSuffix("s")
+        self._api_timeout_spin.setFixedWidth(72)
+        timeout_layout.addWidget(self._api_timeout_spin)
+        self._exec_section.add_widget(timeout_card)
 
         # Auto-retry toggle
         auto_retry_card = QWidget()

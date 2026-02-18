@@ -11,8 +11,8 @@ import random
 import shutil
 import time
 
-from PySide6.QtWidgets import QFileDialog
-from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QFileDialog, QApplication
+from PySide6.QtCore import QSettings, QTimer
 
 from app.prompt_normalizer import PromptNormalizer
 from app.widgets.styled_message_box import StyledMessageBox
@@ -63,8 +63,8 @@ class PageHandlersMixin:
 
         for line in lines:
             task_data = {
-                "model": config.get("model", "IMAGEN_3_5"),
-                "aspect_ratio": config.get("aspect_ratio", "16:9"),
+                "model": config.get("model", "veo_3_1_t2v_fast"),
+                "aspect_ratio": config.get("aspect_ratio", "VIDEO_ASPECT_RATIO_LANDSCAPE"),
                 "quality": config.get("quality", "1K"),
                 "prompt": line,
                 "images_per_prompt": config.get("images_per_prompt", 1),
@@ -121,7 +121,7 @@ class PageHandlersMixin:
         """Add an empty row to the queue."""
         self.api.add_to_queue({
             "prompt": "",
-            "model": "IMAGEN_3_5",
+            "model": "veo_3_1_t2v_fast",
             "aspect_ratio": "16:9",
             "quality": "1K",
         })
@@ -167,6 +167,25 @@ class PageHandlersMixin:
 
     # ── Workflow ──────────────────────────────────────────────────────
 
+    def _on_workflow_cleared(self):
+        """Handle '🗑️ Clear' button click. Clears saved projectId."""
+        if self._active_flow_id:
+            s = QSettings("Whisk", "Workflows")
+            s.remove(f"flow_{self._active_flow_id}/workflow_id")
+            s.remove(f"flow_{self._active_flow_id}/workflow_name")
+            s.sync()
+            logger.info(f"🗑️ Cleared workflow for flow={self._active_flow_id}")
+
+        old_id = self._workflow_id
+        self._workflow_id = ""
+        self._workflow_name = ""
+        if hasattr(self, "_config"):
+            self._config.set_workflow_status(
+                f"🗑️ Cleared: {old_id[:16]}..." if old_id else "🗑️ No workflow to clear"
+            )
+            # Restore button to original state so user can create a new workflow
+            self._config._restore_workflow_btn()
+
     def _on_workflow_requested(self):
         """Handle '🆕 New Workflow' button click. Creates & links the workflow."""
         if not self.workflow_api:
@@ -176,23 +195,83 @@ class PageHandlersMixin:
             self._config.set_workflow_status("⚠️ No active project or cookie API")
             return
 
-        self._config.set_workflow_status("⏳ Creating workflow on Labs...")
+        # Show loading state
+        self._config.set_workflow_btn_enabled(False)
+        self._config._workflow_btn.setText("⏳ Creating...")
+        self._config.set_workflow_status("⏳ Creating workflow on Labs...", error=False)
 
+        import threading
+
+        def _worker():
+            result = {"success": False, "message": "", "workflow_id": "", "workflow_name": ""}
+            try:
+                result = self._do_create_workflow()
+            except Exception as e:
+                logger.error(f"❌ New Workflow error: {e}", exc_info=True)
+                result = {"success": False, "message": str(e), "workflow_id": "", "workflow_name": ""}
+            finally:
+                self._workflow_result_ready.emit(result)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _apply_workflow_result(self, result: dict):
+        """Apply workflow creation result on the main thread (always called via QTimer)."""
+        try:
+            if result.get("success"):
+                workflow_id = result["workflow_id"]
+                workflow_name = result["workflow_name"]
+
+                logger.info("✅ _apply_workflow_result: updating UI for success")
+                self._config.set_workflow_status(
+                    f"✅ Workflow created & linked!\n{workflow_id[:16]}..."
+                )
+                self._config._workflow_btn.setText("✅ Linked")
+                self._config._workflow_btn.setEnabled(False)
+
+                self._workflow_id = workflow_id
+                self._workflow_name = workflow_name
+                self._save_workflow(self._active_flow_id, workflow_id, workflow_name)
+
+                # Auto-add to queue if prompts exist
+                prompt_text = self._config._prompt_input.toPlainText().strip()
+                if prompt_text:
+                    logger.info("➕ Auto-adding prompts to queue after workflow link")
+                    self._config._on_add()
+
+                logger.info("✅ UI updated successfully")
+            else:
+                msg = result.get("message", "Unknown error")
+                logger.warning(f"⚠️ Workflow creation failed: {msg}")
+                self._config.set_workflow_status(f"❌ {msg}", error=True)
+                self._config._restore_workflow_btn()
+        except Exception as e:
+            logger.error(f"❌ _apply_workflow_result failed: {e}", exc_info=True)
+            self._config._restore_workflow_btn()
+
+    def _do_create_workflow(self) -> dict:
+        """Actual workflow creation logic (called from background thread).
+
+        Returns a dict with keys: success, message, workflow_id, workflow_name.
+        All UI updates happen in _apply_workflow_result on the main thread.
+        """
         # Get active cookie for session token
+        logger.debug("🔑 Fetching cookies for workflow creation...")
         keys_resp = self.cookie_api.get_api_keys(
             flow_id=self._active_flow_id,
-            provider="WHISK",
+            provider="VEO3_V2",
             status="active",
         )
 
         if not keys_resp.success or not keys_resp.data:
-            self._config.set_workflow_status("❌ No cookies available.\nAdd a WHISK cookie first.", error=True)
-            return
+            logger.warning("❌ No cookies available for workflow creation")
+            return {"success": False, "message": "No cookies available.\nAdd a VEO3_V2 cookie first.",
+                    "workflow_id": "", "workflow_name": ""}
 
         items = keys_resp.data.get("items", [])
         if not items:
-            self._config.set_workflow_status("❌ No active cookies found.\nAdd a WHISK cookie first.", error=True)
-            return
+            logger.warning("❌ No active cookies found")
+            return {"success": False, "message": "No active cookies found.\nAdd a VEO3_V2 cookie first.",
+                    "workflow_id": "", "workflow_name": ""}
 
         # Filter out expired cookies
         from datetime import datetime
@@ -210,14 +289,11 @@ class PageHandlersMixin:
             live_items.append(item)
 
         if not live_items:
-            # Show last expired time for context
             last_expired = items[0].get("expired", "N/A")
             label = items[0].get("label", "")
-            self._config.set_workflow_status(
-                f"❌ All cookies expired!\n{label}\nExpired: {last_expired}\nAdd a new cookie.",
-                error=True,
-            )
-            return
+            return {"success": False,
+                    "message": f"All cookies expired!\n{label}\nExpired: {last_expired}\nAdd a new cookie.",
+                    "workflow_id": "", "workflow_name": ""}
 
         items = live_items
 
@@ -228,20 +304,23 @@ class PageHandlersMixin:
         csrf_token = cookies.get("__Host-next-auth.csrf-token", "")
 
         if not session_token:
-            self._config.set_workflow_status("❌ Cookie has no session token.")
-            return
+            return {"success": False, "message": "Cookie has no session token.",
+                    "workflow_id": "", "workflow_name": ""}
 
         # Step 1: Create workflow on Labs
+        logger.info("🆕 Step 1: Creating workflow on Labs...")
         wf_resp = self.workflow_api.create_workflow(session_token, csrf_token)
         if not wf_resp.success:
-            self._config.set_workflow_status(f"❌ Create failed:\n{wf_resp.message}")
-            return
+            logger.error(f"❌ Create workflow failed: {wf_resp.message}")
+            return {"success": False, "message": f"Create failed:\n{wf_resp.message}",
+                    "workflow_id": "", "workflow_name": ""}
 
         workflow_id = wf_resp.data.get("workflowId", "")
         workflow_name = wf_resp.data.get("workflowName", "")
         logger.info(f"🆕 Workflow created: {workflow_id} ({workflow_name})")
 
         # Step 2: Link to server flow
+        logger.info("🔗 Step 2: Linking workflow to server flow...")
         link_resp = self.workflow_api.link_workflow(
             flow_id=self._active_flow_id,
             project_id=workflow_id,
@@ -249,22 +328,86 @@ class PageHandlersMixin:
         )
 
         if link_resp.success:
-            self._config.set_workflow_status(
-                f"✅ Workflow created & linked!\n{workflow_id[:16]}..."
-            )
-            self._workflow_id = workflow_id
-            self._workflow_name = workflow_name
-            self._save_workflow(self._active_flow_id, workflow_id, workflow_name)
             logger.info(f"🔗 Workflow linked: {workflow_id} → flow {self._active_flow_id}")
-
-            # Auto-add to queue if prompts exist
-            prompt_text = self._config._prompt_input.toPlainText().strip()
-            if prompt_text:
-                logger.info("➕ Auto-adding prompts to queue after workflow link")
-                self._config._on_add()
+            return {"success": True, "message": "OK",
+                    "workflow_id": workflow_id, "workflow_name": workflow_name}
         else:
-            self._config.set_workflow_status(
-                f"⚠️ Created but link failed:\n{link_resp.message}"
+            logger.error(f"⚠️ Link failed: {link_resp.message}")
+            return {"success": False, "message": f"Created but link failed:\n{link_resp.message}",
+                    "workflow_id": workflow_id, "workflow_name": workflow_name}
+
+    # ── Test Captcha ──────────────────────────────────────────────────
+
+    def _on_test_captcha(self):
+        """Test captcha token fetch — request from bridge and show result."""
+        import time as _time
+
+        # Find captcha bridge
+        captcha_bridge = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, '_captcha_bridge'):
+                captcha_bridge = parent._captcha_bridge
+                break
+            parent = parent.parent()
+
+        if not captcha_bridge or not captcha_bridge.isRunning():
+            StyledMessageBox.warning(
+                self, "🔐 Test Captcha",
+                "Captcha bridge chưa chạy!\n\n"
+                "Bật Extension mode (🔐 → 🔌 Extension) trước."
+            )
+            return
+
+        # Request token
+        prev_count = captcha_bridge.total_tokens_received
+        captcha_bridge.request_token(action="VIDEO_GENERATION", count=1)
+        logger.info("🔐 [Test] Requesting captcha token...")
+
+        # Show waiting dialog
+        from PySide6.QtWidgets import QProgressDialog
+        progress = QProgressDialog(
+            "🔐 Đang chờ captcha token từ Extension...", "Hủy", 0, 30, self
+        )
+        progress.setWindowTitle("Test Captcha")
+        progress.setMinimumWidth(350)
+        progress.setModal(True)
+        progress.show()
+
+        # Poll for token
+        token = ""
+        for i in range(60):  # 30s at 0.5s intervals
+            if progress.wasCanceled():
+                break
+            progress.setValue(min(i // 2, 29))
+            QApplication.processEvents()
+            try:
+                token = captcha_bridge._token_queue.get_nowait()
+                if token:
+                    break
+            except Exception:
+                pass
+            _time.sleep(0.5)
+
+        progress.close()
+
+        if token:
+            # Show token in modal
+            logger.info(f"🔐 [Test] Got token ({len(token)} chars)")
+            display = token[:80] + "..." if len(token) > 80 else token
+            StyledMessageBox.information(
+                self, "✅ Captcha Token Received",
+                f"Token length: {len(token)} chars\n\n"
+                f"{display}"
+            )
+        else:
+            StyledMessageBox.warning(
+                self, "❌ Captcha Timeout",
+                "Không nhận được token sau 30s.\n\n"
+                "Kiểm tra:\n"
+                "1. Extension đã cài trên Chrome\n"
+                "2. Đã mở tab labs.google/fx\n"
+                "3. Extension hiện 🟢 Connected"
             )
 
     # ── Run tasks (background) ────────────────────────────────────────
@@ -306,12 +449,60 @@ class PageHandlersMixin:
         if not workflow_id:
             workflow_id = self._workflow_id
         if not workflow_id:
-            StyledMessageBox.warning(
-                self, "Error",
-                "No workflow linked to this project.\n"
-                "Click '🆕 New Workflow' first to create and link a workflow."
+            # Auto-create project if no projectId saved
+            logger.info("🆕 No projectId found — auto-creating project...")
+
+            # Get session_token from cookie metadata for project creation
+            resp = self.cookie_api.get_api_keys(
+                flow_id=self._active_flow_id,
+                provider="VEO3_V2",
+                status="active",
             )
-            return
+            if resp.success and resp.data:
+                items = resp.data.get("items", [])
+                if items:
+                    metadata = items[0].get("metadata", {})
+                    cookies_dict = metadata.get("cookies", {})
+                    create_session = cookies_dict.get("__Secure-next-auth.session-token", "")
+                    csrf = cookies_dict.get("__Host-next-auth.csrf-token", "")
+
+                    if create_session:
+                        wf_resp = self.workflow_api.create_workflow(create_session, csrf)
+                        if wf_resp.success:
+                            workflow_id = wf_resp.data.get("workflowId", "")
+                            workflow_name = wf_resp.data.get("workflowName", "")
+                            self._workflow_id = workflow_id
+                            self._workflow_name = workflow_name
+                            self._save_workflow(self._active_flow_id, workflow_id, workflow_name)
+
+                            # Link to server flow
+                            self.workflow_api.link_workflow(
+                                flow_id=self._active_flow_id,
+                                project_id=workflow_id,
+                                project_name=workflow_name,
+                            )
+
+                            logger.info(f"🆕 Auto-created project: {workflow_id} ({workflow_name})")
+                            if hasattr(self, "_config"):
+                                self._config.set_workflow_status(
+                                    f"✅ Project created\n{workflow_id[:16]}..."
+                                )
+                        else:
+                            StyledMessageBox.warning(
+                                self, "Error",
+                                f"Không thể tạo project:\n{wf_resp.message}"
+                            )
+                            self._is_generating = False
+                            return
+
+            if not workflow_id:
+                StyledMessageBox.warning(
+                    self, "Error",
+                    "Không thể tạo project tự động.\n"
+                    "Thử click '🆕 New Workflow' thủ công."
+                )
+                self._is_generating = False
+                return
 
         # Step 2: Get pending tasks from queue
         resp = self.api.get_queue()
@@ -357,7 +548,46 @@ class PageHandlersMixin:
         # Get concurrency from config (default 2)
         concurrency = self._config._concurrency_spin.value()
 
+        # Get captcha bridge from main window if available
+        captcha_bridge = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, '_captcha_bridge'):
+                captcha_bridge = parent._captcha_bridge
+                break
+            parent = parent.parent()
+
+        # Pre-check: verify captcha bridge is running and extension connected
+        if not captcha_bridge or not captcha_bridge.isRunning():
+            answer = StyledMessageBox.question(
+                self, "⚠️ Captcha Bridge",
+                "Captcha bridge chưa chạy!\n\n"
+                "Bạn cần bật Extension mode (🔐 → 🔌 Extension) "
+                "để lấy captcha token.\n\n"
+                "Tiếp tục mà không có captcha?",
+            )
+            if not answer:
+                self._is_generating = False
+                return
+            captcha_bridge = None  # Proceed without bridge
+        elif captcha_bridge.total_tokens_received == 0:
+            # Bridge running but extension might not be connected
+            answer = StyledMessageBox.question(
+                self, "⚠️ Extension Check",
+                "Captcha bridge đang chạy nhưng chưa nhận được token nào.\n\n"
+                "Hãy kiểm tra:\n"
+                "1. Extension đã cài trên Chrome\n"
+                "2. Đã mở tab labs.google/fx\n"
+                "3. Extension hiện 🟢 Connected\n\n"
+                "Tiếp tục chạy?",
+            )
+            if not answer:
+                self._is_generating = False
+                return
+
         # Start background worker
+        poll_interval = self._config._poll_interval_spin.value()
+        api_timeout = self._config._api_timeout_spin.value()
         self._worker = GenerationWorker(
             workflow_api=self.workflow_api,
             google_token=google_token,
@@ -367,6 +597,9 @@ class PageHandlersMixin:
             workflow_name=self._workflow_name,
             flow_name=self._flow_name,
             session_token=session_token,
+            captcha_bridge=captcha_bridge,
+            poll_interval=poll_interval,
+            api_timeout=api_timeout,
             parent=self,
         )
         self._worker.task_progress.connect(self._on_task_progress)
@@ -438,6 +671,148 @@ class PageHandlersMixin:
                 elapsed_seconds=elapsed,
                 upload_status=self._upload_status.get(tid, ""),
             )
+
+    def _on_refresh_task(self, task_id: str):
+        """Manual refresh: call check_video_status for a single task."""
+        import threading
+
+        # Find the task data
+        task_data = None
+        for t in self._table._all_tasks:
+            if t.get("id") == task_id:
+                task_data = t
+                break
+
+        if not task_data:
+            logger.warning(f"🔄 Refresh: task {task_id} not found")
+            return
+
+        operation_name = task_data.get("operation_name", "")
+        scene_id = task_data.get("scene_id", "")
+        logger.info(
+            f"🔄 Recheck clicked: task={task_id[:8]}, "
+            f"op={operation_name[:16] if operation_name else 'NONE'}, "
+            f"scene={scene_id[:16] if scene_id else 'NONE'}"
+        )
+
+        if not operation_name:
+            StyledMessageBox.warning(
+                self, "🔄 Refresh",
+                "Không có thông tin operation để kiểm tra.\n"
+                "Task chưa bắt đầu generate video."
+            )
+            return
+
+        # Get google token
+        google_token, _, _, error = self._get_google_access_token()
+        if not google_token:
+            StyledMessageBox.warning(
+                self, "🔄 Refresh",
+                f"Không tìm thấy Google token.\n{error or ''}"
+            )
+            return
+
+        # Update UI to show checking
+        self._table.update_task_progress(
+            task_id, task_data.get("progress", 0), "running",
+            upload_status="🔄 Checking status...",
+        )
+
+        def _do_check():
+            try:
+                logger.info(f"🔄 Calling check_video_status for op={operation_name[:16]}...")
+                resp = self.workflow_api.check_video_status(
+                    google_access_token=google_token,
+                    operation_name=operation_name,
+                    scene_id=scene_id,
+                )
+
+                logger.info(
+                    f"🔄 Response: success={resp.success}, "
+                    f"message={resp.message}, "
+                    f"data_keys={list((resp.data or {}).keys())}"
+                )
+
+                data = resp.data or {}
+                status = data.get("status", "")
+
+                if resp.success and status == "MEDIA_GENERATION_STATUS_SUCCESSFUL":
+                    fife_url = data.get("fife_url", "")
+                    if fife_url:
+                        # Download the video
+                        from app.pages.image_creator_page.workers import GenerationWorker
+
+                        output_folder = task_data.get("output_folder", "")
+                        if not output_folder:
+                            output_folder = os.path.join(
+                                os.path.expanduser("~"), "Downloads", "whisk_pro"
+                            )
+
+                        logger.info(f"🔄 Downloading video to {output_folder}...")
+                        saved_path = GenerationWorker._download_video(
+                            url=fife_url,
+                            save_folder=output_folder,
+                            prefix=task_data.get("filename_prefix", ""),
+                            stt=task_data.get("stt", 0),
+                            img_idx=0,
+                        )
+                        logger.info(f"🔄 Video downloaded: {saved_path}")
+
+                        # Update task as completed
+                        from datetime import datetime
+                        self.api.update_task(task_id, {
+                            "status": "completed",
+                            "progress": 100,
+                            "output_images": [saved_path],
+                            "completed_at": datetime.now().isoformat(timespec="seconds"),
+                            "upload_status": "✅ Video downloaded!",
+                        })
+                        self._running_task_ids.discard(task_id)
+                        self._local_progress.pop(task_id, None)
+                        self._task_start_times.pop(task_id, None)
+                    else:
+                        logger.warning("🔄 Video ready but no download URL in response")
+                        self.api.update_task(task_id, {
+                            "status": "error",
+                            "error_message": "Video ready but no download URL",
+                        })
+
+                elif "FAILED" in status:
+                    error_msg = resp.message or "Video generation failed"
+                    logger.info(f"🔄 Status still FAILED: {error_msg}")
+                    self.api.update_task(task_id, {
+                        "status": "error",
+                        "error_message": f"🔄 Recheck: {error_msg}",
+                    })
+
+                elif "ACTIVE" in status or "PENDING" in status:
+                    # Still processing
+                    logger.info(f"🔄 Still processing: {status}")
+                    self.api.update_task(task_id, {
+                        "status": "running",
+                        "upload_status": f"⏳ Still processing: {status}",
+                    })
+
+                else:
+                    # Unknown status
+                    logger.info(f"🔄 Unknown status: {status}, message: {resp.message}")
+                    self.api.update_task(task_id, {
+                        "upload_status": f"🔄 Status: {status or resp.message}",
+                    })
+
+                # Refresh UI on main thread
+                QTimer.singleShot(0, self.refresh_data)
+
+            except Exception as e:
+                logger.error(f"🔄 Refresh error: {e}", exc_info=True)
+                self.api.update_task(task_id, {
+                    "status": "error",
+                    "upload_status": f"❌ Refresh error: {str(e)[:80]}",
+                })
+                QTimer.singleShot(0, self.refresh_data)
+
+        thread = threading.Thread(target=_do_check, daemon=True)
+        thread.start()
 
     def _on_cancel_running(self):
         """Cancel all running tasks — stop worker and mark them as error."""
@@ -579,7 +954,7 @@ class PageHandlersMixin:
         try:
             resp = self.cookie_api.get_api_keys(
                 flow_id=self._active_flow_id,
-                provider="WHISK",
+                provider="VEO3_V2",
                 status="active",
             )
             if not resp.success or not resp.data:

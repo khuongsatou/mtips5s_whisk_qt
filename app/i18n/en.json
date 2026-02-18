@@ -12,8 +12,8 @@
 
     "config.title": "Config & Prompts",
     "config.model": "Model",
-    "config.quality": "Quality",
     "config.aspect_ratio": "Aspect Ratio",
+    "config.generation_mode": "Video Generation Mode",
     "config.images_per_prompt": "Images / prompt",
     "config.concurrency": "Concurrent runs",
     "config.delay": "Delay between runs (s)",
@@ -44,7 +44,7 @@
     "queue.task": "Task",
     "queue.ref_images": "Reference Images",
     "queue.prompt": "Prompt",
-    "queue.output": "Output",
+    "queue.output": "Video Output",
     "queue.progress": "Progress",
     "queue.message": "Message",
     "queue.completed_at": "⏰ Done at",
@@ -232,5 +232,14 @@
     "update.changelog": "What's New",
     "update.download": "Download Update",
     "update.error": "Could not check for updates",
-    "update.contact": "Contact Support"
+    "update.contact": "Contact Support",
+
+    "gen_mode.text_to_video": "Text → Video",
+    "gen_mode.start_to_video": "Start → Video",
+    "gen_mode.start_end_to_video": "Start End → Video",
+    "gen_mode.segment_to_video": "Segment → Video",
+
+    "captcha.mode_label": "Captcha",
+    "captcha.puppeteer": "🤖 Puppeteer (Auto)",
+    "captcha.extension": "🔌 Extension (Lightweight)"
 }

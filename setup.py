@@ -6,7 +6,7 @@ import sysconfig
 from setuptools import setup
 
 APP = ['main.py']
-APP_NAME = 'WhiskDesktop'
+APP_NAME = 'Veo3DeskTop'
 
 DATA_FILES = []
 
@@ -22,7 +22,7 @@ OPTIONS = {
     'plist': {
         'CFBundleName': 'Whisk Desktop',
         'CFBundleDisplayName': 'Whisk Desktop',
-        'CFBundleIdentifier': 'com.1nutnhanwhisk.desktop',
+        'CFBundleIdentifier': 'com.1nutnhanveo3.desktop',
         'CFBundleVersion': '1.0.0',
         'CFBundleShortVersionString': '1.0.0',
         'NSHighResolutionCapable': True,

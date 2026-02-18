@@ -12,8 +12,8 @@
 
     "config.title": "Cấu hình & Prompts",
     "config.model": "Mô hình",
-    "config.quality": "Chất lượng",
     "config.aspect_ratio": "Tỷ lệ ảnh",
+    "config.generation_mode": "Chế độ tạo video",
     "config.images_per_prompt": "Số lượng ảnh / prompt",
     "config.concurrency": "Số lượng chạy đồng thời",
     "config.delay": "Độ trễ giữa các lượt (s)",
@@ -44,7 +44,7 @@
     "queue.task": "Task",
     "queue.ref_images": "Ảnh tham chiếu",
     "queue.prompt": "Prompt",
-    "queue.output": "Ảnh output",
+    "queue.output": "Video output",
     "queue.progress": "Tiến độ",
     "queue.message": "Thông báo",
     "queue.completed_at": "⏰ Xong lúc",
@@ -232,5 +232,14 @@
     "update.changelog": "Có gì mới",
     "update.download": "Tải cập nhật",
     "update.error": "Không thể kiểm tra cập nhật",
-    "update.contact": "Liên hệ hỗ trợ"
+    "update.contact": "Liên hệ hỗ trợ",
+
+    "gen_mode.text_to_video": "Text → Video",
+    "gen_mode.start_to_video": "Start → Video",
+    "gen_mode.start_end_to_video": "Start End → Video",
+    "gen_mode.segment_to_video": "Segment → Video",
+
+    "captcha.mode_label": "Captcha",
+    "captcha.puppeteer": "🤖 Puppeteer (Tự động)",
+    "captcha.extension": "🔌 Extension (Nhẹ)"
 }
