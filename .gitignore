@@ -46,3 +46,4 @@ coverage.xml
 
 pucaptcha/node_modules
 pucaptcha/package-lock.json
+dist-win/
