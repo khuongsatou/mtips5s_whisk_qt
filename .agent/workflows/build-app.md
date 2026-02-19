@@ -1,44 +1,32 @@
 ---
-description: Build macOS .app bundle and DMG installer using PyInstaller
+description: Build macOS .app bundle and DMG installer (run when user says "build mac")
 ---
 
-# Build macOS App
-
-## Prerequisites
-
-- PyInstaller ≥ 6.0 installed (`pip install pyinstaller`)
-- All dependencies in `requirements.txt` installed
-
-## Steps
+# Build macOS App + DMG
 
 // turbo-all
 
-1. **Clean previous build artifacts**
+1. **Run build script**
 
 ```bash
-cd /Users/apple/Desktop/extension/mtips5s_whisk && rm -rf build/ dist/ *.spec
+cd /Users/apple/Desktop/extension/mtips5s_veo3 && chmod +x scripts/build_mac.sh && bash scripts/build_mac.sh 2>&1
 ```
 
-2. **Build the .app bundle**
+2. **Verify output**
 
 ```bash
-cd /Users/apple/Desktop/extension/mtips5s_whisk && python3 -m PyInstaller --name "Whisk Desktop" --windowed --onedir --icon=app/theme/icons/app_icon.icns --add-data "app/i18n:app/i18n" --add-data "app/theme:app/theme" main.py
+ls -la /Users/apple/Desktop/extension/mtips5s_veo3/dist/Veo3DeskTop.dmg && du -sh "/Users/apple/Desktop/extension/mtips5s_veo3/dist/Whisk Desktop.app"
 ```
 
-3. **Verify the build**
+## What the script does
 
-```bash
-ls -la /Users/apple/Desktop/extension/mtips5s_whisk/dist/Whisk\ Desktop.app/Contents/MacOS/
-```
+1. Runs 861 tests
+2. Compiles universal native launcher (arm64 + x86_64)
+3. Creates `.app` bundle with Info.plist, resources, themes, i18n
+4. Sets `APP_ENV=prod` in launcher + bundles `.env.prod`
+5. Creates DMG installer
 
-4. **Test launch the built app**
+## Output
 
-```bash
-open /Users/apple/Desktop/extension/mtips5s_whisk/dist/Whisk\ Desktop.app
-```
-
-## Notes
-
-- The `--add-data` flags ensure i18n JSON files and theme QSS/icons are bundled
-- For Windows build, replace `.icns` with `.ico` and use `--onefile` for single EXE
-- For universal binary (Intel + Apple Silicon), build on each architecture separately
+- `dist/Whisk Desktop.app` (~2.2 MB)
+- `dist/Veo3DeskTop.dmg` (~1.1 MB)

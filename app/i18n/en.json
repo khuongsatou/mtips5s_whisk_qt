@@ -39,6 +39,7 @@
     "config.ref_id_getting": "⏳ Uploading…",
     "config.ref_id_error": "❌ Upload failed",
     "config.toggle_panel": "Toggle config panel",
+    "config.channel_tooltip": "Captcha routing channel (1-5). Each project can use a different channel.",
 
     "queue.stt": "STT",
     "queue.task": "Task",

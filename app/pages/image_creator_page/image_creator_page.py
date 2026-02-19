@@ -47,6 +47,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._flow_name: str = flow_name  # Project/flow name (e.g., "accc")
         self._workflow_id: str = ""  # Set during workflow creation or loaded from server
         self._workflow_name: str = ""  # Workflow name from Labs (e.g., "Whisk: 2/16/26")
+        self._channel: int = 1  # Captcha channel (1..5)
         self.translator.language_changed.connect(self.retranslate)
         self._selected_ids: list[str] = []
         self._is_generating = False
@@ -226,6 +227,7 @@ class ImageCreatorPage(PageHandlersMixin, QWidget):
         self._config.workflow_cleared.connect(self._on_workflow_cleared)
         self._config.request_upload_ref.connect(self._on_request_upload_ref)
         self._workflow_result_ready.connect(self._apply_workflow_result)
+        self._config.channel_changed.connect(self._on_channel_changed)
 
         # Table selection
         self._table.task_selected.connect(self._on_selection_changed)

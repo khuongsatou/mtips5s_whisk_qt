@@ -1,24 +1,20 @@
-# Current Task
+# 📋 Current Task Status
 
-## Active: Cookie Management & UX Polish (Session 2026-02-18)
+> **Updated**: 2026-02-19 12:30 (ICT)
 
-**Status:** ✅ Completed
+## Active Task: None
 
-### Completed Items
+Không có task đang thực hiện. Tất cả công việc đã hoàn thành.
 
-- [x] Dedicated "Get Cookie" button in bridge dashboard
-- [x] Extension: extract `__Secure-next-auth.session-token` from `labs.google`
-- [x] Bridge server: `POST /bridge/cookie` + `GET /bridge/cookie` endpoints
-- [x] Extension popup: cookie POST status feedback (✅/⚠️)
-- [x] Separate Start Cookie / Stop Cookie toggle (2h sync)
-- [x] Auto-fetch cookie on Cookie Manager dialog open
-- [x] Fixed Get Cookie freeze (Qt Signal instead of QTimer from threads)
-- [x] Suppress noisy GET /bridge/cookie logs
-- [x] Cookie endpoint API docs in dashboard
-- [x] New Workflow button loading state (background thread)
+## Recently Completed (19/02/2026)
 
-### Backlog
+- [x] Cookie Manager — Search bar + Load More pagination
+- [x] Project Manager — Search bar + Sort buttons + Load More pagination
+- [x] QSS Styling — Polished styles cho search, sort, load more (dark + light)
+- [x] Sort Fix — Chuyển sang client-side sorting (STT by ID, Updated by timestamp)
+- [x] Column Width — Mở rộng dialog cho cột Name hiện rõ
+- [x] Disable Puppeteer — Xóa option, force extension mode, không mở Chrome
 
-- [ ] Persistent cookie storage on bridge (survive app restart)
-- [ ] Chrome alarms API for MV3 background sync
-- [ ] Cookie integration tests
+## Backlog
+
+Không có task pending.

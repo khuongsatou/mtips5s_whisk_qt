@@ -94,3 +94,59 @@ scripts\build_win.bat
 | Icon format  | `.icns`                 | `.ico`                               |
 | Font default | SF Pro / Helvetica      | Segoe UI                             |
 | Build output | `dist/WhiskDesktop.app` | `dist\WhiskDesktop\WhiskDesktop.exe` |
+
+---
+
+## Build Rules
+
+> [!IMPORTANT]
+> **Production environment is mandatory for release builds.** The build script (`scripts/build_mac.sh`) automatically handles this.
+
+### Environment Switching
+
+| Item             | Dev (local `python main.py`) | Prod (bundled `.app`)         |
+| ---------------- | ---------------------------- | ----------------------------- |
+| `APP_ENV`        | `dev` (from `.env`)          | `prod` (set in `launcher.sh`) |
+| `ADMIN_BASE_URL` | `http://localhost:8000`      | `https://tools.1nutnhan.com`  |
+| `FLOW_BASE_URL`  | `http://localhost:8000`      | `https://tools.1nutnhan.com`  |
+| `LABS_BASE_URL`  | `https://labs.google/fx`     | `https://labs.google/fx`      |
+
+### How it works
+
+1. `launcher.sh` (inside `.app/Contents/MacOS/`) exports `APP_ENV=prod`
+2. `.env` with `APP_ENV=prod` is created inside the bundle at `Resources/app_bundle/.env`
+3. `.env.prod` is copied to `Resources/app_bundle/.env.prod`
+4. `app/api/api_config.py` reads `APP_ENV` → selects correct base URLs
+
+### Key files
+
+| File                    | Role                                                                |
+| ----------------------- | ------------------------------------------------------------------- |
+| `.env`                  | Root env (sets `APP_ENV=dev` locally)                               |
+| `.env.dev`              | Dev-specific overrides                                              |
+| `.env.prod`             | Prod-specific overrides                                             |
+| `app/api/api_config.py` | Reads env → sets `ADMIN_BASE_URL`, `FLOW_BASE_URL`, `LABS_BASE_URL` |
+| `scripts/build_mac.sh`  | Injects `APP_ENV=prod` into launcher + bundles `.env.prod`          |
+
+---
+
+## Windows Build Server (SSH)
+
+> [!IMPORTANT]
+> **Always use this server for Windows .exe builds.** No need to ask the user for credentials.
+
+| Item     | Value                   |
+| -------- | ----------------------- |
+| Host     | `45.32.63.217`          |
+| User     | `root`                  |
+| Password | `m[Z3T(r%ghDWpk.q`      |
+| Command  | `ssh root@45.32.63.217` |
+
+### Windows Build Workflow
+
+1. SSH into the server
+2. Sync project files via `scp` or `rsync`
+3. Install dependencies: `pip install -r requirements.txt pyinstaller`
+4. Run PyInstaller: `pyinstaller --name Veo3DeskTop --windowed --onedir --icon=resources/icon.ico --add-data "app/i18n;app/i18n" --add-data "app/theme;app/theme" --add-data "app/assets;app/assets" main.py`
+5. Set `APP_ENV=prod` in the bundled `.env`
+6. Copy `.exe` back to Mac via `scp`

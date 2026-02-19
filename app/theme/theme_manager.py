@@ -70,7 +70,7 @@ class ThemeManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._current_theme = "light"
+        self._current_theme = "dark"
 
     @property
     def current_theme(self) -> str:

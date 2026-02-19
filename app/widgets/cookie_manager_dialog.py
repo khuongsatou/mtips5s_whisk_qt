@@ -3,6 +3,7 @@ Whisk Desktop — Cookie Manager Dialog.
 
 Modal dialog for managing browser cookies used for API authentication.
 Flow: Paste session-token → Test → Save (if valid) → List / Delete.
+Supports search + load-more pagination.
 """
 import logging
 import threading
@@ -10,7 +11,7 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
-    QAbstractItemView, QTextEdit, QSizePolicy,
+    QAbstractItemView, QTextEdit, QSizePolicy, QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
@@ -18,13 +19,14 @@ from PySide6.QtGui import QCursor
 logger = logging.getLogger("whisk.cookie_dialog")
 
 PROVIDER = "VEO3_V2"
+PAGE_SIZE = 20  # items per page
 
 
 class CookieManagerDialog(QDialog):
     """Modal dialog for cookie management."""
 
     cookies_changed = Signal()  # Emitted when cookies are added/deleted
-    _credit_result = Signal(int, str)  # (row, text) — thread-safe credit update
+    _credit_result = Signal(int, str, str)  # (row, credits_text, tier_text) — thread-safe credit update
     _bridge_cookie_result = Signal(str, str)  # (cookie, error) — thread-safe bridge cookie
 
     def __init__(self, api, translator, parent=None, cookie_api=None, active_flow_id=None, workflow_api=None):
@@ -39,10 +41,17 @@ class CookieManagerDialog(QDialog):
         self._bridge_cookie_result.connect(self._on_bridge_cookie_result)
         self.setObjectName("cookie_manager_dialog")
         self.setWindowTitle(self.translator.t("cookie.title"))
-        self.setMinimumSize(700, 500)
+        self.setMinimumSize(900, 540)
         self.setModal(True)
+
+        # Pagination state
+        self._all_cookies: list[dict] = []
+        self._server_total: int = 0
+        self._current_offset: int = 0
+        self._search_text: str = ""
+
         self._setup_ui()
-        self._load_cookies()
+        self._load_cookies_page(reset=True)
         self._auto_fetch_bridge_cookie()
 
     def _setup_ui(self):
@@ -99,16 +108,30 @@ class CookieManagerDialog(QDialog):
         add_layout.addLayout(btn_row)
         layout.addWidget(add_section)
 
+        # --- Search bar ---
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("cookie_search_input")
+        self._search_input.setPlaceholderText("🔍 Search cookie…")
+        self._search_input.setClearButtonEnabled(True)
+        self._search_input.textChanged.connect(self._on_search_changed)
+        search_row.addWidget(self._search_input, 1)
+
+        layout.addLayout(search_row)
+
         # --- Cookie table ---
         self._table = QTableWidget()
         self._table.setObjectName("cookie_table")
-        self._table.setColumnCount(6)
+        self._table.setColumnCount(7)
         self._table.setHorizontalHeaderLabels([
             self.translator.t("cookie.name"),
             self.translator.t("cookie.status"),
             self.translator.t("cookie.expires"),
             "Provider",
             "Credits",
+            "Tier",
             self.translator.t("cookie.actions"),
         ])
         self._table.setAlternatingRowColors(True)
@@ -124,13 +147,15 @@ class CookieManagerDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.Fixed)
         self._table.setColumnWidth(1, 80)
         header.setSectionResizeMode(2, QHeaderView.Fixed)
-        self._table.setColumnWidth(2, 150)
+        self._table.setColumnWidth(2, 120)
         header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self._table.setColumnWidth(3, 90)
+        self._table.setColumnWidth(3, 75)
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self._table.setColumnWidth(4, 100)
+        self._table.setColumnWidth(4, 80)
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self._table.setColumnWidth(5, 130)
+        self._table.setColumnWidth(5, 80)
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        self._table.setColumnWidth(6, 130)
 
         layout.addWidget(self._table, 1)
 
@@ -144,9 +169,17 @@ class CookieManagerDialog(QDialog):
 
         bottom.addStretch()
 
+        # Load More button
+        self._load_more_btn = QPushButton("📥 Load More")
+        self._load_more_btn.setObjectName("cookie_refresh_btn")
+        self._load_more_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        self._load_more_btn.clicked.connect(self._on_load_more)
+        self._load_more_btn.setVisible(False)
+        bottom.addWidget(self._load_more_btn)
+
         self._refresh_btn = QPushButton(f"🔄 {self.translator.t('cookie.refresh_all')}")
         self._refresh_btn.setObjectName("cookie_refresh_btn")
-        self._refresh_btn.clicked.connect(self._load_cookies)
+        self._refresh_btn.clicked.connect(lambda: self._load_cookies_page(reset=True))
         bottom.addWidget(self._refresh_btn)
 
         self._close_btn = QPushButton(self.translator.t("cookie.close"))
@@ -156,20 +189,27 @@ class CookieManagerDialog(QDialog):
 
         layout.addLayout(bottom)
 
-    # ── Load cookies from server ──────────────────────────────────────
+    # ── Data loading with pagination ──────────────────────────────────
 
-    def _load_cookies(self):
-        """Load cookies/api-keys from server and populate table."""
+    def _load_cookies_page(self, reset: bool = False):
+        """Load one page of cookies from API. If reset=True, start from offset 0."""
+        if reset:
+            self._all_cookies = []
+            self._current_offset = 0
+            self._credit_buttons = {}
+
         cookies = []
         if self.cookie_api and self._active_flow_id:
             resp = self.cookie_api.get_api_keys(
                 flow_id=self._active_flow_id,
                 provider=PROVIDER,
+                offset=self._current_offset,
+                limit=PAGE_SIZE,
             )
             if resp.success and resp.data:
                 items = resp.data.get("items", [])
+                self._server_total = resp.data.get("total", 0)
                 for item in items:
-                    # Extract user info from metadata
                     meta = item.get("metadata", {})
                     user_email = meta.get("user_email", "")
                     label = item.get("label", "")
@@ -183,19 +223,38 @@ class CookieManagerDialog(QDialog):
                         "error": item.get("error", False),
                         "msg_error": item.get("msg_error", ""),
                     })
-                logger.info(f"Loaded {len(cookies)} api-keys from server")
+                self._current_offset += len(items)
+                logger.info(f"Loaded {len(items)} api-keys (total: {self._server_total}, offset: {self._current_offset})")
             else:
                 logger.warning(f"Cookie API failed: {resp.message}, falling back to mock")
                 resp = self.api.get_cookies()
                 if resp.success:
                     cookies = resp.data or []
+                    self._server_total = len(cookies)
+                    self._current_offset = len(cookies)
         else:
             if not self._active_flow_id:
                 logger.warning("No active flow ID, cannot load cookies from server")
             resp = self.api.get_cookies()
             if resp.success:
                 cookies = resp.data or []
+                self._server_total = len(cookies)
+                self._current_offset = len(cookies)
 
+        self._all_cookies.extend(cookies)
+        self._refresh_table()
+
+    def _get_filtered_cookies(self) -> list[dict]:
+        """Return cookies filtered by current search text."""
+        if not self._search_text:
+            return list(self._all_cookies)
+        q = self._search_text.lower()
+        return [c for c in self._all_cookies if q in c.get("name", "").lower()]
+
+    def _refresh_table(self):
+        """Re-populate the table from _all_cookies with current filter."""
+        cookies = self._get_filtered_cookies()
+        self._credit_buttons = {}
         self._table.setRowCount(0)
 
         for row, cookie in enumerate(cookies):
@@ -262,6 +321,11 @@ class CookieManagerDialog(QDialog):
             credit_item.setTextAlignment(Qt.AlignCenter)
             self._table.setItem(row, 4, credit_item)
 
+            # Tier (initially "—", populated on check credit)
+            tier_item = QTableWidgetItem("—")
+            tier_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 5, tier_item)
+
             # Actions: refresh + credit + delete
             cookie_id = cookie.get("id", "")
             action_widget = QWidget()
@@ -301,12 +365,42 @@ class CookieManagerDialog(QDialog):
             )
             action_layout.addWidget(del_btn)
 
-            self._table.setCellWidget(row, 5, action_widget)
+            self._table.setCellWidget(row, 6, action_widget)
 
-        # Update count
-        self._count_label.setText(
-            f"{self.translator.t('cookie.count')}: {len(cookies)}"
-        )
+        # Update count + load more visibility
+        loaded = len(self._all_cookies)
+        shown = len(cookies)
+        has_more = self._current_offset < self._server_total
+        self._load_more_btn.setVisible(has_more)
+
+        if self._search_text:
+            self._count_label.setText(
+                f"{self.translator.t('cookie.count')}: {shown}/{loaded} (total: {self._server_total})"
+            )
+        else:
+            self._count_label.setText(
+                f"{self.translator.t('cookie.count')}: {loaded}/{self._server_total}"
+            )
+
+        if has_more:
+            remaining = self._server_total - self._current_offset
+            self._load_more_btn.setText(f"📥 Load More ({remaining})")
+
+    # ── Search ────────────────────────────────────────────────────────
+
+    def _on_search_changed(self, text: str):
+        """Filter table by search text (client-side)."""
+        self._search_text = text.strip()
+        self._refresh_table()
+
+    # ── Load More ─────────────────────────────────────────────────────
+
+    def _on_load_more(self):
+        """Load the next page of cookies."""
+        self._load_more_btn.setEnabled(False)
+        self._load_more_btn.setText("⏳ Loading…")
+        self._load_cookies_page(reset=False)
+        self._load_more_btn.setEnabled(True)
 
     # ── Auto-fetch cookie from bridge on dialog open ───────────────────
 
@@ -435,7 +529,7 @@ class CookieManagerDialog(QDialog):
                 )
                 logger.info(f"save_cookie OK: {save_resp.message}")
                 self._value_input.clear()
-                self._load_cookies()
+                self._load_cookies_page(reset=True)
                 self.cookies_changed.emit()
             else:
                 self._show_status(f"❌ Save failed: {save_resp.message}", error=True)
@@ -474,7 +568,7 @@ class CookieManagerDialog(QDialog):
             btn.setToolTip("Check if cookie is still alive")
 
         # Reload table to reflect updated status
-        self._load_cookies()
+        self._load_cookies_page(reset=True)
 
     # ── Delete cookie ────────────────────────────────────────────────
 
@@ -489,7 +583,7 @@ class CookieManagerDialog(QDialog):
                 logger.warning(f"Invalid api-key ID for delete: {cookie_id}")
         else:
             self.api.delete_cookie(cookie_id)
-        self._load_cookies()
+        self._load_cookies_page(reset=True)
         self.cookies_changed.emit()
 
     # ── Check credit ──────────────────────────────────────────────
@@ -503,10 +597,18 @@ class CookieManagerDialog(QDialog):
         btn.setEnabled(False)
         btn.setText("⏳")
 
-        # Show loading in Credits cell
-        loading_item = QTableWidgetItem("⏳ ...")
-        loading_item.setTextAlignment(Qt.AlignCenter)
-        self._table.setItem(row, 4, loading_item)
+        # Show loading in Credits + Tier cells
+        for col in (4, 5):
+            loading_item = QTableWidgetItem("⏳ ...")
+            loading_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, col, loading_item)
+
+        # Tier mapping
+        PAYGATE_MAP = {
+            "PAYGATE_TIER_NOT_PAID": "🆓 FREE",
+            "PAYGATE_TIER_ONE": "⚡ PRO",
+            "PAYGATE_TIER_TWO": "💎 ULTRA",
+        }
 
         def _worker():
             try:
@@ -516,7 +618,7 @@ class CookieManagerDialog(QDialog):
                     status="active",
                 )
                 if not resp.success or not resp.data:
-                    self._credit_result.emit(row, "❌")
+                    self._credit_result.emit(row, "❌", "—")
                     return
 
                 token = ""
@@ -526,27 +628,33 @@ class CookieManagerDialog(QDialog):
                         break
 
                 if not token:
-                    self._credit_result.emit(row, "❌")
+                    self._credit_result.emit(row, "❌", "—")
                     return
 
                 credit_resp = self.workflow_api.get_credit_status(token)
                 if credit_resp.success and credit_resp.data:
                     credits = credit_resp.data.get("credits", 0)
-                    self._credit_result.emit(row, f"💎 {credits:,}")
+                    paygate = credit_resp.data.get("userPaygateTier", "")
+                    tier_text = PAYGATE_MAP.get(paygate, paygate or "—")
+                    self._credit_result.emit(row, f"💎 {credits:,}", tier_text)
                 else:
-                    self._credit_result.emit(row, "❌")
+                    self._credit_result.emit(row, "❌", "—")
             except Exception as e:
                 logger.error(f"check_credit exception: {e}")
-                self._credit_result.emit(row, "❌")
+                self._credit_result.emit(row, "❌", "—")
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_credit_result(self, row: int, text: str):
+    def _on_credit_result(self, row: int, credits_text: str, tier_text: str):
         """Handle credit result on main thread (via signal)."""
         if row < self._table.rowCount():
-            item = QTableWidgetItem(text)
-            item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(row, 4, item)
+            credit_item = QTableWidgetItem(credits_text)
+            credit_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 4, credit_item)
+
+            tier_item = QTableWidgetItem(tier_text)
+            tier_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 5, tier_item)
         btn = self._credit_buttons.get(row)
         if btn:
             btn.setEnabled(True)

@@ -394,14 +394,12 @@ class MainWindow(QMainWindow):
 
     def _restore_captcha_mode(self):
         """Restore captcha mode from preferences on startup."""
-        from app.preferences import load_preferences
-        prefs = load_preferences()
-        mode = prefs.get("captcha_mode", "puppeteer")
+        from app.preferences import save_preference
+        # Puppeteer mode is disabled — always use extension
+        mode = "extension"
+        save_preference("captcha_mode", mode)
         self._header.set_captcha_mode(mode)
-        if mode == "extension":
-            self._start_captcha_bridge()
-        else:
-            self._start_captcha_sidecar()
+        self._start_captcha_bridge()
 
     def _start_captcha_bridge(self):
         """Start the captcha bridge HTTP server for extension mode."""
@@ -416,8 +414,8 @@ class MainWindow(QMainWindow):
             lambda err: logger.error(f"🔐 Captcha bridge error: {err}")
         )
         self._captcha_bridge.token_received.connect(
-            lambda tokens, action: logger.info(
-                f"🔐 Got {len(tokens)} token(s) from extension (action={action})"
+            lambda tokens, action, ch: logger.info(
+                f"🔐 Got {len(tokens)} token(s) on channel {ch} (action={action})"
             )
         )
         self._captcha_bridge.start()

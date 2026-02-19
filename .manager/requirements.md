@@ -48,9 +48,9 @@ Whisk Desktop — PySide6 AI image generation tool with configurable queue, refe
 
 ### 🧪 QA Engineer (`qa-engineer/SKILL.md`)
 
-- [x] Test coverage ≥ 40% (currently 42%)
-- [x] 163/163 tests passing
-- [ ] Target 60% coverage
+- [x] Test coverage ≥ 40% (currently 76%)
+- [x] 861/861 tests passing
+- [x] Target 60% coverage (current: 76% ✅)
 - [ ] Integration tests for page-level flows
 
 ### 🚀 DevOps Engineer (`devops-engineer/SKILL.md`)
@@ -66,7 +66,7 @@ Whisk Desktop — PySide6 AI image generation tool with configurable queue, refe
 | ----------- | --------------- | ------ |
 | Performance | Launch < 3s     | ✅     |
 | Platforms   | macOS + Windows | 🔄     |
-| Coverage    | ≥ 40%           | ✅ 42% |
+| Coverage    | ≥ 60%           | ✅ 76% |
 | i18n        | EN + VI         | ✅     |
 | Theming     | Light + Dark    | ✅     |
 | Licensing   | PySide6 (LGPL)  | ✅     |

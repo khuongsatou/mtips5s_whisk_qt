@@ -238,20 +238,13 @@ class Header(QWidget):
             }
         """)
 
-        puppeteer_text = self.translator.t('captcha.puppeteer')
         extension_text = self.translator.t('captcha.extension')
 
         # Add checkmark to active mode
-        if self._captcha_mode == "puppeteer":
-            puppeteer_text = f"✓ {puppeteer_text}"
-        else:
-            extension_text = f"✓ {extension_text}"
+        extension_text = f"✓ {extension_text}"
 
         act_extension = menu.addAction(extension_text)
-        act_puppeteer = menu.addAction(puppeteer_text)
-
         act_extension.triggered.connect(lambda: self._set_captcha_mode("extension"))
-        act_puppeteer.triggered.connect(lambda: self._set_captcha_mode("puppeteer"))
 
         # Show menu below the button
         menu.exec(self._captcha_btn.mapToGlobal(

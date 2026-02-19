@@ -12,6 +12,7 @@ Endpoints:
 """
 import json
 import queue
+from urllib.parse import urlparse, parse_qs
 import urllib.request
 import urllib.error
 import logging
@@ -22,6 +23,7 @@ from PySide6.QtCore import QThread, Signal
 logger = logging.getLogger("whisk.captcha_bridge")
 
 BRIDGE_PORT = 18923
+NUM_CHANNELS = 5
 
 
 class CaptchaBridgeHandler(BaseHTTPRequestHandler):
@@ -52,48 +54,75 @@ class CaptchaBridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode("utf-8"))
 
+    @staticmethod
+    def _parse_channel(path: str) -> int:
+        """Extract ?channel=N from query string, default=1, clamp 1..NUM_CHANNELS."""
+        try:
+            qs = parse_qs(urlparse(path).query)
+            ch = int(qs.get("channel", ["1"])[0])
+            return max(1, min(ch, NUM_CHANNELS))
+        except (ValueError, TypeError):
+            return 1
+
     def do_OPTIONS(self):
         """Handle CORS preflight."""
         self._send_json(200, {"ok": True})
 
     def do_GET(self):
-        if self.path == "/" or self.path == "" or self.path == "/index.html":
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path in ("/", "", "/index.html"):
             bridge = self.server.bridge
             self._send_html(self._build_login_page(bridge))
 
-        elif self.path == "/dashboard":
+        elif path == "/dashboard":
             bridge = self.server.bridge
             self._send_html(self._build_landing_page(bridge))
 
-        elif self.path == "/captcha/request":
+        elif path == "/captcha/request":
             bridge = self.server.bridge
-            if bridge.pending_request:
+            ch = self._parse_channel(self.path)
+            pending = bridge.pending_requests.get(ch)
+            if pending:
                 self._send_json(200, {
                     "need_token": True,
-                    "action": bridge.pending_request.get("action", "VIDEO_GENERATION"),
-                    "count": bridge.pending_request.get("count", 1),
+                    "action": pending.get("action", "VIDEO_GENERATION"),
+                    "count": pending.get("count", 1),
+                    "channel": ch,
                 })
             else:
-                self._send_json(200, {"need_token": False})
+                self._send_json(200, {"need_token": False, "channel": ch})
 
-        elif self.path == "/captcha/status":
+        elif path == "/captcha/status":
             bridge = self.server.bridge
+            ch = self._parse_channel(self.path)
+            # Per-channel status
+            channels_status = {}
+            for c in range(1, NUM_CHANNELS + 1):
+                channels_status[str(c)] = {
+                    "has_pending": bridge.pending_requests.get(c) is not None,
+                    "queue_size": bridge._token_queues[c].qsize(),
+                }
             self._send_json(200, {
                 "running": True,
-                "has_pending": bridge.pending_request is not None,
+                "channel": ch,
+                "has_pending": bridge.pending_requests.get(ch) is not None,
                 "tokens_received": bridge.total_tokens_received,
                 "project_name": bridge.project_name,
+                "channels": channels_status,
             })
 
-        elif self.path == "/bridge/info":
+        elif path == "/bridge/info":
             bridge = self.server.bridge
             self._send_json(200, {
                 "project_name": bridge.project_name,
                 "port": bridge.port,
                 "running": True,
+                "num_channels": NUM_CHANNELS,
             })
 
-        elif self.path == "/bridge/cookie":
+        elif path == "/bridge/cookie":
             bridge = self.server.bridge
             self._send_json(200, {
                 "cookie": bridge._stored_cookie,
@@ -293,7 +322,7 @@ class CaptchaBridgeHandler(BaseHTTPRequestHandler):
     def _build_landing_page(bridge):
         """Build the HTML landing page with API docs and live status."""
         tokens_received = bridge.total_tokens_received
-        has_pending = bridge.pending_request is not None
+        has_pending = any(v is not None for v in bridge.pending_requests.values())
         return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1045,7 +1074,10 @@ class CaptchaBridgeHandler(BaseHTTPRequestHandler):
 </html>'''
 
     def do_POST(self):
-        if self.path == "/captcha/token":
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == "/captcha/token":
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_length)
@@ -1053,19 +1085,22 @@ class CaptchaBridgeHandler(BaseHTTPRequestHandler):
 
                 tokens = data.get("tokens", [])
                 action = data.get("action", "VIDEO_GENERATION")
+                ch = int(data.get("channel", 1))
+                ch = max(1, min(ch, NUM_CHANNELS))
 
                 if tokens:
                     bridge = self.server.bridge
                     bridge.total_tokens_received += len(tokens)
                     bridge._last_token = tokens[0]  # Display only
                     for t in tokens:
-                        bridge._token_queue.put(t)  # Each worker gets unique token
-                    bridge.pending_request = None  # Clear request
-                    bridge.token_received.emit(tokens, action)
-                    logger.info(f"🔐 Received {len(tokens)} captcha token(s) from extension")
+                        bridge._token_queues[ch].put(t)
+                    bridge.pending_requests[ch] = None  # Clear channel request
+                    bridge.token_received.emit(tokens, action, ch)
+                    logger.info(f"🔐 Received {len(tokens)} token(s) on channel {ch}")
                     self._send_json(200, {
                         "ok": True,
                         "received": len(tokens),
+                        "channel": ch,
                     })
                 else:
                     self._send_json(400, {"error": "No tokens provided"})
@@ -1073,10 +1108,10 @@ class CaptchaBridgeHandler(BaseHTTPRequestHandler):
             except (json.JSONDecodeError, ValueError) as e:
                 self._send_json(400, {"error": f"Invalid JSON: {e}"})
 
-        elif self.path == "/bridge/login":
+        elif path == "/bridge/login":
             self._handle_bridge_login()
 
-        elif self.path == "/bridge/cookie":
+        elif path == "/bridge/cookie":
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
                 raw_body = self.rfile.read(content_length)
@@ -1160,23 +1195,24 @@ class CaptchaBridgeServer(QThread):
     Runs the captcha bridge HTTP server in a background thread.
 
     Signals:
-        token_received(list, str) — emitted when tokens arrive from extension
-        server_started(int)       — emitted with port when server starts
-        server_error(str)         — emitted if server fails to start
+        token_received(list, str, int) — emitted when tokens arrive (tokens, action, channel)
+        server_started(int)            — emitted with port when server starts
+        server_error(str)              — emitted if server fails to start
     """
 
-    token_received = Signal(list, str)   # (tokens, action)
-    server_started = Signal(int)          # port
-    server_error = Signal(str)            # error message
+    token_received = Signal(list, str, int)  # (tokens, action, channel)
+    server_started = Signal(int)              # port
+    server_error = Signal(str)                # error message
 
     def __init__(self, port=BRIDGE_PORT, parent=None):
         super().__init__(parent)
         self.port = port
         self.project_name = ''       # Active project name
-        self.pending_request = None
+        # Per-channel state (channels 1..NUM_CHANNELS)
+        self.pending_requests = {ch: None for ch in range(1, NUM_CHANNELS + 1)}
+        self._token_queues = {ch: queue.Queue() for ch in range(1, NUM_CHANNELS + 1)}
         self.total_tokens_received = 0
         self._last_token = ''  # Last received token (display only)
-        self._token_queue = queue.Queue()  # Thread-safe token queue
         self._stored_cookie = ''  # Cookie stored via dashboard
         self._httpd = None
         self._stop_event = threading.Event()
@@ -1186,23 +1222,35 @@ class CaptchaBridgeServer(QThread):
         self.project_name = name or ''
         logger.debug(f"📌 Bridge project: {self.project_name or '(none)'}")
 
-    def request_token(self, action="VIDEO_GENERATION", count=1):
+    def request_token(self, action="VIDEO_GENERATION", count=1, channel=1):
         """
-        Set a pending captcha request for the extension to pick up.
+        Set a pending captcha request for a specific channel.
 
         Args:
             action: reCAPTCHA action string
             count: number of tokens to request
+            channel: channel number (1..NUM_CHANNELS)
         """
-        self.pending_request = {
+        ch = max(1, min(channel, NUM_CHANNELS))
+        self.pending_requests[ch] = {
             "action": action,
             "count": count,
         }
-        logger.info(f"🔐 Captcha request queued: action={action}, count={count}")
+        logger.info(f"🔐 Captcha request queued: channel={ch}, action={action}, count={count}")
 
-    def clear_request(self):
-        """Clear any pending captcha request."""
-        self.pending_request = None
+    def clear_request(self, channel=None):
+        """Clear pending captcha request. If channel=None, clear all channels."""
+        if channel is not None:
+            ch = max(1, min(channel, NUM_CHANNELS))
+            self.pending_requests[ch] = None
+        else:
+            for ch in range(1, NUM_CHANNELS + 1):
+                self.pending_requests[ch] = None
+
+    def get_token_queue(self, channel=1):
+        """Get the token queue for a specific channel."""
+        ch = max(1, min(channel, NUM_CHANNELS))
+        return self._token_queues[ch]
 
     def run(self):
         """Start the HTTP server."""

@@ -26,10 +26,15 @@ class ConfigPanel(BuildSectionsMixin, SettingsHandlersMixin, QWidget):
     workflow_requested = Signal()  # Emits when user clicks New Workflow
     workflow_cleared = Signal()    # Emits when user clicks Clear Workflow
     request_upload_ref = Signal(str, dict)  # (category, {category: [paths]}) for pre-upload
+    channel_changed = Signal(int)  # Emits channel number (1..5)
 
-    TIERS = ["PRO", "ULTRA"]
+    TIERS = ["FREE", "PRO", "ULTRA"]
     DEFAULT_TIER = "PRO"
     MODELS_BY_TIER = {
+        "FREE": [
+            ("Veo3.1_Fast", "veo_3_1_t2v_fast"),
+            ("Veo3.1_Quality", "veo_3_1_t2v"),
+        ],
         "PRO": [
             ("Veo3.1_Fast", "veo_3_1_t2v_fast"),          # default for PRO
             ("Veo3.1_Quality", "veo_3_1_t2v"),
@@ -41,6 +46,7 @@ class ConfigPanel(BuildSectionsMixin, SettingsHandlersMixin, QWidget):
         ],
     }
     DEFAULT_MODEL_BY_TIER = {
+        "FREE": "veo_3_1_t2v_fast",
         "PRO": "veo_3_1_t2v_fast",
         "ULTRA": "veo_3_1_t2v_fast_ultra_relaxed",
     }

@@ -422,6 +422,7 @@ class WorkflowApiClient:
         media_inputs: list[dict] | None = None,
         timeout: int = 60,
         recaptcha_token: str = "",
+        paygate_tier: str = "PAYGATE_TIER_ONE",
     ) -> ApiResponse:
         """
         POST aisandbox-pa.googleapis.com/v1/video:batchAsyncGenerateVideoText
@@ -444,7 +445,7 @@ class WorkflowApiClient:
                 "sessionId": session_id,
                 "projectId": workflow_id,
                 "tool": "PINHOLE",
-                "userPaygateTier": "PAYGATE_TIER_ONE",
+                "userPaygateTier": paygate_tier,
             },
             "requests": [
                 {

@@ -270,6 +270,12 @@ class SettingsHandlersMixin:
         self._populate_model_combo(value)
         self._save_settings()
 
+    def set_tier(self, value: str):
+        """Programmatically set the tier (FREE / PRO / ULTRA) from external code."""
+        if value not in ("FREE", "PRO", "ULTRA"):
+            return
+        self._on_tier_selected(value)
+
     def _populate_model_combo(self, tier: str):
         """Populate model combo based on selected tier."""
         self._model_combo.blockSignals(True)

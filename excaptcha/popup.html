@@ -181,6 +181,41 @@
         color: #6b7280;
         margin-top: 10px;
       }
+
+      .channel-row {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+        align-items: center;
+      }
+      .channel-label {
+        font-size: 11px;
+        color: #9ca3af;
+        flex-shrink: 0;
+      }
+      .channel-btn {
+        flex: 1;
+        padding: 6px 0;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        background: #16213e;
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        text-align: center;
+      }
+      .channel-btn:hover {
+        border-color: #7c3aed;
+        color: #c4b5fd;
+      }
+      .channel-btn.active {
+        background: #7c3aed;
+        border-color: #7c3aed;
+        color: white;
+        box-shadow: 0 0 8px #7c3aed60;
+      }
     </style>
   </head>
   <body>
@@ -188,7 +223,25 @@
       <span>🔐</span>
       <h1>Whisk Captcha Bridge</h1>
     </div>
-    <div id="projectName" style="font-size: 12px; color: #06B6D4; font-weight: 600; margin-bottom: 10px; display: none;"></div>
+    <div
+      id="projectName"
+      style="
+        font-size: 12px;
+        color: #06b6d4;
+        font-weight: 600;
+        margin-bottom: 10px;
+        display: none;
+      "
+    ></div>
+
+    <div class="channel-row">
+      <span class="channel-label">📡</span>
+      <button class="channel-btn active" data-ch="1">1</button>
+      <button class="channel-btn" data-ch="2">2</button>
+      <button class="channel-btn" data-ch="3">3</button>
+      <button class="channel-btn" data-ch="4">4</button>
+      <button class="channel-btn" data-ch="5">5</button>
+    </div>
 
     <div class="status-card">
       <div class="status-row">

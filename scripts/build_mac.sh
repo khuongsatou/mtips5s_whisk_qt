@@ -181,6 +181,7 @@ fi
 DIR="$(cd "$(dirname "$0")/../Resources" && pwd)"
 export PYTHONPATH="$DIR/app_bundle"
 export WHISK_RESOURCE_DIR="$DIR"
+export APP_ENV="prod"
 
 # Launch app
 cd "$DIR/app_bundle"
@@ -195,6 +196,11 @@ mkdir -p "$APP_BUNDLE"
 # Copy Python source files
 cp "$PROJECT_DIR/main.py" "$APP_BUNDLE/"
 cp -R "$PROJECT_DIR/app" "$APP_BUNDLE/"
+
+# Copy .env.prod for production config
+cp "$PROJECT_DIR/.env.prod" "$APP_BUNDLE/.env.prod" 2>/dev/null || true
+# Create root .env with APP_ENV=prod
+echo "APP_ENV=prod" > "$APP_BUNDLE/.env"
 
 # Remove __pycache__ directories
 find "$APP_BUNDLE" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

@@ -1,8 +1,8 @@
 /**
  * Whisk Captcha Bridge — Popup Script.
  *
- * Shows status, provides start/stop control, and Test button
- * to execute captcha and display the resulting token.
+ * Shows status, provides start/stop control, channel selector,
+ * and Test button to execute captcha and display the resulting token.
  */
 
 const dot = document.getElementById('statusDot');
@@ -15,6 +15,45 @@ const tokenResult = document.getElementById('tokenResult');
 const projectNameEl = document.getElementById('projectName');
 
 let currentStatus = 'disconnected';
+let selectedChannel = 1;
+
+// ── Channel selector ─────────────────────────────────────────────────
+
+const channelBtns = document.querySelectorAll('.channel-btn');
+
+function setActiveChannel(ch) {
+    selectedChannel = ch;
+    channelBtns.forEach((btn) => {
+        btn.classList.toggle('active', parseInt(btn.dataset.ch) === ch);
+    });
+    // Persist selection
+    chrome.storage.local.set({ captchaChannel: ch });
+    // Notify content script if polling
+    if (currentStatus !== 'disconnected') {
+        chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+            if (tab?.url?.includes('labs.google/fx')) {
+                chrome.tabs.sendMessage(tab.id, { type: 'SET_CHANNEL', channel: ch });
+            }
+        });
+    }
+}
+
+channelBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+        setActiveChannel(parseInt(btn.dataset.ch));
+    });
+});
+
+// Load saved channel
+chrome.storage.local.get(['captchaChannel'], (result) => {
+    const saved = result.captchaChannel || 1;
+    selectedChannel = saved;
+    channelBtns.forEach((btn) => {
+        btn.classList.toggle('active', parseInt(btn.dataset.ch) === saved);
+    });
+});
+
+// ── Status & Project ─────────────────────────────────────────────────
 
 /** Fetch project name from bridge /bridge/info */
 async function fetchProjectName() {
@@ -24,10 +63,11 @@ async function fetchProjectName() {
         });
         const data = await resp.json();
         if (data.project_name) {
-            projectNameEl.textContent = '📌 ' + data.project_name;
+            projectNameEl.textContent = `📌 ${data.project_name}  •  📡 Ch ${selectedChannel}`;
             projectNameEl.style.display = 'block';
         } else {
-            projectNameEl.style.display = 'none';
+            projectNameEl.textContent = `📡 Channel ${selectedChannel}`;
+            projectNameEl.style.display = 'block';
         }
     } catch {
         projectNameEl.style.display = 'none';
@@ -40,7 +80,7 @@ function updateUI(data) {
     dot.className = 'dot';
     if (currentStatus === 'connected' || currentStatus === 'polling') {
         dot.classList.add('green');
-        statusText.textContent = '🟢 Connected';
+        statusText.textContent = `🟢 Connected (Ch ${selectedChannel})`;
         toggleBtn.textContent = '⏹ Stop';
         toggleBtn.className = 'btn btn-stop';
     } else {
@@ -73,7 +113,8 @@ chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
 });
 fetchProjectName();
 
-// Toggle button (Start/Stop polling)
+// ── Toggle (Start/Stop) ─────────────────────────────────────────────
+
 toggleBtn.addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -85,7 +126,7 @@ toggleBtn.addEventListener('click', async () => {
 
     const cmd = currentStatus === 'disconnected' ? 'START_POLLING' : 'STOP_POLLING';
 
-    chrome.tabs.sendMessage(tab.id, { type: cmd }, (response) => {
+    chrome.tabs.sendMessage(tab.id, { type: cmd, channel: selectedChannel }, (response) => {
         if (chrome.runtime.lastError) {
             statusText.textContent = '⚠️ Refresh labs.google/fx tab';
             dot.className = 'dot yellow';
@@ -99,7 +140,8 @@ toggleBtn.addEventListener('click', async () => {
     });
 });
 
-// Test button — execute captcha and show token
+// ── Test Captcha ─────────────────────────────────────────────────────
+
 testBtn.addEventListener('click', async () => {
     testBtn.disabled = true;
     testBtn.textContent = '⏳ Getting...';
@@ -127,7 +169,8 @@ testBtn.addEventListener('click', async () => {
     );
 });
 
-// Cookie button — one-time extract from browser
+// ── Cookie ───────────────────────────────────────────────────────────
+
 const cookieBtn = document.getElementById('cookieBtn');
 const cookieResult = document.getElementById('cookieResult');
 cookieBtn.addEventListener('click', () => {
@@ -194,7 +237,8 @@ cookieSyncBtn.addEventListener('click', () => {
     });
 });
 
-// Auto-refresh status every 2 seconds
+// ── Auto-refresh ─────────────────────────────────────────────────────
+
 setInterval(() => {
     chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
         if (response) updateUI(response);

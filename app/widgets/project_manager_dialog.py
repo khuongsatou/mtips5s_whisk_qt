@@ -1,7 +1,8 @@
 """
 Whisk Desktop — Project Manager Dialog.
 
-Modal dialog for managing projects with CRUD operations.
+Modal dialog for managing projects with CRUD operations,
+search, sort (STT / Updated), and load-more pagination.
 """
 import logging
 from datetime import datetime
@@ -15,6 +16,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
 
 logger = logging.getLogger("whisk.project_dialog")
+
+PAGE_SIZE = 20  # items per page
 
 
 class ProjectManagerDialog(QDialog):
@@ -33,11 +36,22 @@ class ProjectManagerDialog(QDialog):
         self.active_flow_id = active_flow_id
         self.setObjectName("project_manager_dialog")
         self.setWindowTitle(self.translator.t("project.title"))
-        self.setMinimumSize(750, 520)
+        self.setMinimumSize(850, 560)
         self.setModal(True)
         self._editing_id = None  # Track which project is being edited
+
+        # Pagination & sort state
+        self._all_projects: list[dict] = []   # all loaded projects
+        self._server_total: int = 0           # total on server
+        self._current_offset: int = 0         # how many loaded so far
+        self._sort_field: str = "updated_at"  # "stt" or "updated_at"
+        self._sort_asc: bool = False          # ascending?
+        self._search_text: str = ""
+
         self._setup_ui()
-        self._load_projects()
+        self._load_projects_page(reset=True)
+
+    # ── UI ────────────────────────────────────────────────────────────
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -68,8 +82,6 @@ class ProjectManagerDialog(QDialog):
         )
         form_layout.addWidget(self._name_input)
 
-
-
         # Form buttons
         btn_row = QHBoxLayout()
         btn_row.addStretch()
@@ -90,11 +102,42 @@ class ProjectManagerDialog(QDialog):
         form_layout.addLayout(btn_row)
         layout.addWidget(form_section)
 
+        # --- Search + Sort toolbar ---
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("project_search_input")
+        self._search_input.setPlaceholderText("🔍 Search project…")
+        self._search_input.setClearButtonEnabled(True)
+        self._search_input.textChanged.connect(self._on_search_changed)
+        toolbar.addWidget(self._search_input, 1)
+
+        # Sort buttons
+        self._sort_stt_btn = QPushButton("STT ↓")
+        self._sort_stt_btn.setObjectName("project_sort_btn")
+        self._sort_stt_btn.setFixedHeight(30)
+        self._sort_stt_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        self._sort_stt_btn.setToolTip("Sort by ID")
+        self._sort_stt_btn.clicked.connect(self._on_sort_stt)
+        toolbar.addWidget(self._sort_stt_btn)
+
+        self._sort_updated_btn = QPushButton("Updated ↓")
+        self._sort_updated_btn.setObjectName("project_sort_btn_active")
+        self._sort_updated_btn.setFixedHeight(30)
+        self._sort_updated_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        self._sort_updated_btn.setToolTip("Sort by last updated")
+        self._sort_updated_btn.clicked.connect(self._on_sort_updated)
+        toolbar.addWidget(self._sort_updated_btn)
+
+        layout.addLayout(toolbar)
+
         # --- Project table ---
         self._table = QTableWidget()
         self._table.setObjectName("project_table")
-        self._table.setColumnCount(4)
+        self._table.setColumnCount(5)
         self._table.setHorizontalHeaderLabels([
+            "STT",
             self.translator.t("project.name"),
             self.translator.t("project.status"),
             self.translator.t("project.updated"),
@@ -109,13 +152,15 @@ class ProjectManagerDialog(QDialog):
 
         # Column sizing
         header = self._table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.Fixed)
-        self._table.setColumnWidth(1, 80)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self._table.setColumnWidth(0, 50)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.Fixed)
-        self._table.setColumnWidth(2, 130)
+        self._table.setColumnWidth(2, 80)
         header.setSectionResizeMode(3, QHeaderView.Fixed)
         self._table.setColumnWidth(3, 130)
+        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        self._table.setColumnWidth(4, 130)
 
         layout.addWidget(self._table, 1)
 
@@ -128,6 +173,14 @@ class ProjectManagerDialog(QDialog):
         bottom.addWidget(self._count_label)
 
         bottom.addStretch()
+
+        # Load More button
+        self._load_more_btn = QPushButton("📥 Load More")
+        self._load_more_btn.setObjectName("project_save_btn")
+        self._load_more_btn.setCursor(QCursor(Qt.PointingHandCursor))
+        self._load_more_btn.clicked.connect(self._on_load_more)
+        self._load_more_btn.setVisible(False)
+        bottom.addWidget(self._load_more_btn)
 
         self._close_btn = QPushButton(self.translator.t("project.close"))
         self._close_btn.setObjectName("project_close_btn")
@@ -143,6 +196,8 @@ class ProjectManagerDialog(QDialog):
 
         layout.addLayout(bottom)
 
+    # ── Cookie dialog ─────────────────────────────────────────────────
+
     def _on_open_cookies(self):
         """Open cookie manager dialog."""
         from app.widgets.cookie_manager_dialog import CookieManagerDialog
@@ -153,15 +208,26 @@ class ProjectManagerDialog(QDialog):
         )
         dialog.exec()
 
-    def _load_projects(self):
-        """Load projects from API and populate table."""
-        # Try real API first, then fall back to mock
+    # ── Data loading ──────────────────────────────────────────────────
+
+    def _load_projects_page(self, reset: bool = False):
+        """Load one page of projects from API. If reset=True, start from offset 0."""
+        if reset:
+            self._all_projects = []
+            self._current_offset = 0
+
         projects = []
         if self.flow_api:
-            resp = self.flow_api.get_flows(flow_type="VEO3_V2")
+            sort_param = self._get_sort_param()
+            resp = self.flow_api.get_flows(
+                flow_type="VEO3_V2",
+                offset=self._current_offset,
+                limit=PAGE_SIZE,
+                sort=sort_param,
+            )
             if resp.success and resp.data:
                 items = resp.data.get("items", [])
-                # Map server flow fields to project fields for UI
+                self._server_total = resp.data.get("total", 0)
                 for item in items:
                     projects.append({
                         "id": str(item.get("id", "")),
@@ -170,16 +236,58 @@ class ProjectManagerDialog(QDialog):
                         "status": item.get("status", "active"),
                         "updated_at": item.get("updated_at", item.get("created_at", "")),
                     })
-                logger.info(f"Loaded {len(projects)} projects from server")
+                self._current_offset += len(items)
+                logger.info(f"Loaded {len(items)} projects (total: {self._server_total}, offset: {self._current_offset})")
             else:
                 logger.warning(f"Flow API failed: {resp.message}, falling back to mock")
                 resp = self.api.get_projects()
                 if resp.success:
                     projects = resp.data or []
+                    self._server_total = len(projects)
+                    self._current_offset = len(projects)
         else:
             resp = self.api.get_projects()
             if resp.success:
                 projects = resp.data or []
+                self._server_total = len(projects)
+                self._current_offset = len(projects)
+
+        self._all_projects.extend(projects)
+        self._refresh_table()
+
+    def _get_sort_param(self) -> str:
+        """Build sort param string for the API."""
+        direction = "asc" if self._sort_asc else "desc"
+        if self._sort_field == "stt":
+            return f"id:{direction}"
+        return f"updated_at:{direction}"
+
+    def _get_filtered_projects(self) -> list[dict]:
+        """Return projects filtered by search and sorted by current sort field."""
+        projects = list(self._all_projects)
+
+        # Search filter
+        if self._search_text:
+            q = self._search_text.lower()
+            projects = [p for p in projects if q in p.get("name", "").lower()]
+
+        # Client-side sort
+        if self._sort_field == "stt":
+            projects.sort(
+                key=lambda p: int(p.get("id", 0) or 0),
+                reverse=not self._sort_asc,
+            )
+        else:  # updated_at
+            projects.sort(
+                key=lambda p: p.get("updated_at", "") or "",
+                reverse=not self._sort_asc,
+            )
+
+        return projects
+
+    def _refresh_table(self):
+        """Re-populate the table from _all_projects with current filter."""
+        projects = self._get_filtered_projects()
 
         # Get active project id
         active_resp = self.api.get_active_project()
@@ -190,10 +298,15 @@ class ProjectManagerDialog(QDialog):
             self._table.insertRow(row)
             self._table.setRowHeight(row, 44)
 
+            # STT
+            stt_item = QTableWidgetItem(str(row + 1))
+            stt_item.setTextAlignment(Qt.AlignCenter)
+            self._table.setItem(row, 0, stt_item)
+
             # Name
             name_item = QTableWidgetItem(proj.get("name", ""))
             name_item.setToolTip(proj.get("name", ""))
-            self._table.setItem(row, 0, name_item)
+            self._table.setItem(row, 1, name_item)
 
             # Status badge
             status = proj.get("status", "active")
@@ -222,7 +335,7 @@ class ProjectManagerDialog(QDialog):
                 badge.setObjectName(obj_name)
                 badge.setToolTip(status)
             status_layout.addWidget(badge)
-            self._table.setCellWidget(row, 1, status_widget)
+            self._table.setCellWidget(row, 2, status_widget)
 
             # Updated at
             updated = proj.get("updated_at", "")
@@ -236,7 +349,7 @@ class ProjectManagerDialog(QDialog):
                 upd_text = "—"
             upd_item = QTableWidgetItem(upd_text)
             upd_item.setTextAlignment(Qt.AlignCenter)
-            self._table.setItem(row, 2, upd_item)
+            self._table.setItem(row, 3, upd_item)
 
             # Actions: activate + edit + delete
             project_id = proj.get("id", "")
@@ -274,11 +387,88 @@ class ProjectManagerDialog(QDialog):
             )
             action_layout.addWidget(del_btn)
 
-            self._table.setCellWidget(row, 3, action_widget)
+            self._table.setCellWidget(row, 4, action_widget)
 
-        self._count_label.setText(
-            f"{self.translator.t('project.count')}: {len(projects)}"
-        )
+        # Update count + load more visibility
+        loaded = len(self._all_projects)
+        shown = len(projects)
+        has_more = self._current_offset < self._server_total
+        self._load_more_btn.setVisible(has_more)
+
+        if self._search_text:
+            self._count_label.setText(
+                f"{self.translator.t('project.count')}: {shown}/{loaded} (total: {self._server_total})"
+            )
+        else:
+            self._count_label.setText(
+                f"{self.translator.t('project.count')}: {loaded}/{self._server_total}"
+            )
+
+        if has_more:
+            remaining = self._server_total - self._current_offset
+            self._load_more_btn.setText(f"📥 Load More ({remaining})")
+
+    # ── Search ────────────────────────────────────────────────────────
+
+    def _on_search_changed(self, text: str):
+        """Filter table by search text (client-side)."""
+        self._search_text = text.strip()
+        self._refresh_table()
+
+    # ── Sort ──────────────────────────────────────────────────────────
+
+    def _on_sort_stt(self):
+        """Toggle sort by STT (ID)."""
+        if self._sort_field == "stt":
+            self._sort_asc = not self._sort_asc
+        else:
+            self._sort_field = "stt"
+            self._sort_asc = True
+        self._update_sort_buttons()
+        self._refresh_table()
+
+    def _on_sort_updated(self):
+        """Toggle sort by Updated."""
+        if self._sort_field == "updated_at":
+            self._sort_asc = not self._sort_asc
+        else:
+            self._sort_field = "updated_at"
+            self._sort_asc = False
+        self._update_sort_buttons()
+        self._refresh_table()
+
+    def _update_sort_buttons(self):
+        """Update sort button labels and styles."""
+        arrow_stt = "↑" if self._sort_asc else "↓"
+        arrow_upd = "↑" if self._sort_asc else "↓"
+
+        if self._sort_field == "stt":
+            self._sort_stt_btn.setText(f"STT {arrow_stt}")
+            self._sort_stt_btn.setObjectName("project_sort_btn_active")
+            self._sort_updated_btn.setText("Updated")
+            self._sort_updated_btn.setObjectName("project_sort_btn")
+        else:
+            self._sort_stt_btn.setText("STT")
+            self._sort_stt_btn.setObjectName("project_sort_btn")
+            self._sort_updated_btn.setText(f"Updated {arrow_upd}")
+            self._sort_updated_btn.setObjectName("project_sort_btn_active")
+
+        # Force style refresh
+        self._sort_stt_btn.style().unpolish(self._sort_stt_btn)
+        self._sort_stt_btn.style().polish(self._sort_stt_btn)
+        self._sort_updated_btn.style().unpolish(self._sort_updated_btn)
+        self._sort_updated_btn.style().polish(self._sort_updated_btn)
+
+    # ── Load More ─────────────────────────────────────────────────────
+
+    def _on_load_more(self):
+        """Load the next page of projects."""
+        self._load_more_btn.setEnabled(False)
+        self._load_more_btn.setText("⏳ Loading…")
+        self._load_projects_page(reset=False)
+        self._load_more_btn.setEnabled(True)
+
+    # ── CRUD ──────────────────────────────────────────────────────────
 
     def _on_save(self):
         """Create or update a project."""
@@ -318,7 +508,7 @@ class ProjectManagerDialog(QDialog):
                 })
             self._name_input.clear()
 
-        self._load_projects()
+        self._load_projects_page(reset=True)
         self.projects_changed.emit()
 
     def _on_activate(self, project_id: str, project_name: str):
@@ -358,5 +548,5 @@ class ProjectManagerDialog(QDialog):
             self.api.delete_project(project_id)
         if self._editing_id == project_id:
             self._on_cancel_edit()
-        self._load_projects()
+        self._load_projects_page(reset=True)
         self.projects_changed.emit()

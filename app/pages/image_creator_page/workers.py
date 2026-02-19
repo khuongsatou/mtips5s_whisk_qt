@@ -35,6 +35,8 @@ class GenerationWorker(QThread):
         captcha_bridge=None,
         poll_interval: int = 30,
         api_timeout: int = 60,
+        channel: int = 1,
+        paygate_tier: str = "PAYGATE_TIER_ONE",
         parent=None,
     ):
         super().__init__(parent)
@@ -47,6 +49,8 @@ class GenerationWorker(QThread):
         self.captcha_bridge = captcha_bridge
         self.poll_interval = max(5, poll_interval)
         self.api_timeout = max(30, min(180, api_timeout))
+        self.channel = max(1, min(channel, 5))
+        self.paygate_tier = paygate_tier
         self.tasks = tasks
         self.concurrency = max(1, concurrency)
         self._stop_flag = False
@@ -58,11 +62,11 @@ class GenerationWorker(QThread):
     CAPTCHA_TIMEOUT = 30  # Wait up to 30s for captcha token
     POLL_MAX_TIME = 480  # Max 8 min polling after generation starts
 
-    def _fetch_captcha_token(self, task_id: str) -> str:
+    def _fetch_captcha_token(self, task_id: str, channel: int = 1) -> str:
         """Request and wait for a unique captcha token from the bridge.
 
-        Uses bridge._token_queue (thread-safe queue.Queue) so each
-        concurrent worker gets exactly one unique token.
+        Uses bridge.get_token_queue(channel) so each
+        concurrent worker gets exactly one unique token on the right channel.
         """
         if not self.captcha_bridge:
             raise RuntimeError(
@@ -71,16 +75,17 @@ class GenerationWorker(QThread):
 
         bridge = self.captcha_bridge
 
-        # Request a new token from extension
-        bridge.request_token(action="VIDEO_GENERATION", count=1)
-        self.task_progress.emit(task_id, 15, "running", {"upload_status": "🔐 Waiting for captcha token..."})
-        logger.info("🔐 Requesting captcha token from extension...")
+        # Request a new token from extension on the correct channel
+        bridge.request_token(action="VIDEO_GENERATION", count=1, channel=channel)
+        self.task_progress.emit(task_id, 15, "running", {"upload_status": f"🔐 Waiting for captcha (ch {channel})..."})
+        logger.info(f"🔐 Requesting captcha token on channel {channel}...")
 
-        # Block until a unique token is available from the queue
+        # Block until a unique token is available from the channel queue
         try:
-            token = bridge._token_queue.get(timeout=self.CAPTCHA_TIMEOUT)
+            token_queue = bridge.get_token_queue(channel)
+            token = token_queue.get(timeout=self.CAPTCHA_TIMEOUT)
             if token:
-                logger.info(f"🔐 Got captcha token ({len(token)} chars)")
+                logger.info(f"🔐 Got captcha token on ch {channel} ({len(token)} chars)")
                 self.task_progress.emit(task_id, 18, "running", {"upload_status": "🔐 Captcha token received!"})
                 return token
         except Exception:
@@ -183,7 +188,7 @@ class GenerationWorker(QThread):
                     break
 
                 # Fetch captcha token before API call
-                recaptcha_token = self._fetch_captcha_token(task_id)
+                recaptcha_token = self._fetch_captcha_token(task_id, channel=self.channel)
 
                 self.task_progress.emit(
                     task_id, 20, "running",
@@ -199,6 +204,7 @@ class GenerationWorker(QThread):
                     media_inputs=media_inputs or None,
                     timeout=self.api_timeout,
                     recaptcha_token=recaptcha_token,
+                    paygate_tier=self.paygate_tier,
                 )
 
                 if not gen_resp.success:

@@ -9,9 +9,9 @@ from app.theme.theme_manager import ThemeManager
 class TestThemeManager:
     """Test suite for the ThemeManager class."""
 
-    def test_default_theme_is_light(self, theme_manager):
-        assert theme_manager.current_theme == "light"
-        assert theme_manager.is_dark is False
+    def test_default_theme_is_dark(self, theme_manager):
+        assert theme_manager.current_theme == "dark"
+        assert theme_manager.is_dark is True
 
     def test_set_theme_to_dark(self, theme_manager):
         theme_manager.set_theme("dark")
@@ -28,25 +28,25 @@ class TestThemeManager:
         with pytest.raises(ValueError, match="Invalid theme"):
             theme_manager.set_theme("blue")
 
-    def test_toggle_theme_switches_to_dark(self, theme_manager):
-        result = theme_manager.toggle_theme()
-        assert result == "dark"
-        assert theme_manager.current_theme == "dark"
-
-    def test_toggle_theme_switches_back_to_light(self, theme_manager):
-        theme_manager.toggle_theme()
+    def test_toggle_theme_switches_to_light(self, theme_manager):
         result = theme_manager.toggle_theme()
         assert result == "light"
         assert theme_manager.current_theme == "light"
 
+    def test_toggle_theme_switches_back_to_dark(self, theme_manager):
+        theme_manager.toggle_theme()
+        result = theme_manager.toggle_theme()
+        assert result == "dark"
+        assert theme_manager.current_theme == "dark"
+
     def test_theme_changed_signal(self, theme_manager, qtbot):
         with qtbot.waitSignal(theme_manager.theme_changed, timeout=1000) as blocker:
             theme_manager.toggle_theme()
-        assert blocker.args == ["dark"]
+        assert blocker.args == ["light"]
 
     def test_set_same_theme_no_signal(self, theme_manager, qtbot):
         with qtbot.assertNotEmitted(theme_manager.theme_changed):
-            theme_manager.set_theme("light")
+            theme_manager.set_theme("dark")
 
     def test_palette_contains_all_required_tokens(self, theme_manager):
         required_tokens = [
@@ -59,11 +59,11 @@ class TestThemeManager:
                 assert token in palette, f"Missing token '{token}' in {mode} palette"
 
     def test_palette_property_returns_current(self, theme_manager):
-        light_palette = theme_manager.palette
-        assert light_palette == ThemeManager.PALETTES["light"]
-        theme_manager.set_theme("dark")
         dark_palette = theme_manager.palette
         assert dark_palette == ThemeManager.PALETTES["dark"]
+        theme_manager.set_theme("light")
+        light_palette = theme_manager.palette
+        assert light_palette == ThemeManager.PALETTES["light"]
 
 
 class TestThemeManagerStylesheet:
@@ -74,11 +74,11 @@ class TestThemeManagerStylesheet:
         qss_template = "background: {{bg-primary}}; color: {{text-primary}};"
         m = mock_open(read_data=qss_template)
         with patch("builtins.open", m):
-            with patch("app.theme.theme_manager.resource_path", return_value="/fake/light.qss"):
+            with patch("app.theme.theme_manager.resource_path", return_value="/fake/dark.qss"):
                 result = tm.get_stylesheet()
         assert "{{bg-primary}}" not in result
-        assert "#FFFFFF" in result  # light bg-primary
-        assert "#1F2937" in result  # light text-primary
+        assert "#1E1B2E" in result  # dark bg-primary
+        assert "#F9FAFB" in result  # dark text-primary
 
     def test_get_stylesheet_dark_tokens(self):
         tm = ThemeManager()

@@ -3,7 +3,7 @@
   "name": "Whisk Captcha Bridge",
   "version": "1.0.0",
   "description": "Bridge between Whisk Desktop app and Google reCAPTCHA on labs.google",
-  "permissions": ["activeTab", "scripting", "tabs", "cookies"],
+  "permissions": ["activeTab", "scripting", "tabs", "cookies", "storage"],
   "host_permissions": [
     "https://labs.google/*",
     "https://*.google.com/*",

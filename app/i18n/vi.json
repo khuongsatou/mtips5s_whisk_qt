@@ -39,6 +39,7 @@
     "config.ref_id_getting": "⏳ Đang upload…",
     "config.ref_id_error": "❌ Upload thất bại",
     "config.toggle_panel": "Thu gọn/mở rộng cấu hình",
+    "config.channel_tooltip": "Kênh captcha (1-5). Mỗi dự án dùng kênh riêng.",
 
     "queue.stt": "STT",
     "queue.task": "Task",

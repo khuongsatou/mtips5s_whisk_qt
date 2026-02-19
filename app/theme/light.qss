@@ -411,6 +411,73 @@ QPushButton#project_close_btn {
 QPushButton#project_close_btn:hover {
     background-color: {{bg-hover}};
 }
+
+/* ─── Search bars (Project + Cookie) ─── */
+QLineEdit#project_search_input,
+QLineEdit#cookie_search_input {
+    background-color: {{bg-primary}};
+    border: 1px solid {{border}};
+    border-radius: 8px;
+    padding: 8px 12px 8px 12px;
+    font-size: 12px;
+    color: {{text-primary}};
+    min-height: 16px;
+}
+QLineEdit#project_search_input:focus,
+QLineEdit#cookie_search_input:focus {
+    border-color: {{color-primary}};
+    background-color: #FFFFFF;
+}
+QLineEdit#project_search_input:hover,
+QLineEdit#cookie_search_input:hover {
+    border-color: {{color-primary-light}};
+}
+
+/* ─── Sort buttons (Project) ─── */
+QPushButton#project_sort_btn {
+    background-color: {{bg-secondary}};
+    border: 1px solid {{border}};
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    color: {{text-secondary}};
+    min-width: 70px;
+}
+QPushButton#project_sort_btn:hover {
+    background-color: {{bg-hover}};
+    border-color: {{color-primary-light}};
+    color: {{text-primary}};
+}
+QPushButton#project_sort_btn_active {
+    background-color: rgba(124, 58, 237, 0.1);
+    border: 1px solid {{color-primary}};
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: {{color-primary}};
+    min-width: 70px;
+}
+QPushButton#project_sort_btn_active:hover {
+    background-color: rgba(124, 58, 237, 0.18);
+}
+
+/* ─── Get Cookie button ─── */
+QPushButton#cookie_get_btn {
+    background-color: {{bg-secondary}};
+    border: 1px solid {{border}};
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: {{text-primary}};
+}
+QPushButton#cookie_get_btn:hover {
+    background-color: {{bg-hover}};
+    border-color: {{color-primary-light}};
+}
+
 /* ─────────────── Token Manager Dialog ─────────────── */
 QPushButton#token_header_btn {
     background-color: {{bg-secondary}};

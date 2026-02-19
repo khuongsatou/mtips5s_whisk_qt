@@ -103,6 +103,25 @@ class BuildSectionsMixin:
         self._workflow_status.setVisible(False)
         self._model_section.add_widget(self._workflow_status)
 
+        # Channel selector (1..5)
+        channel_row = QHBoxLayout()
+        channel_row.setSpacing(8)
+        channel_label = QLabel("📡 Channel")
+        channel_label.setObjectName("config_label")
+        channel_label.setToolTip(self.translator.t("config.channel_tooltip"))
+        channel_row.addWidget(channel_label)
+
+        self._channel_combo = QComboBox()
+        self._channel_combo.setObjectName("config_combo")
+        for i in range(1, 6):
+            self._channel_combo.addItem(f"Kênh {i}", i)
+        self._channel_combo.setCurrentIndex(0)  # Default channel 1
+        self._channel_combo.currentIndexChanged.connect(
+            lambda idx: self.channel_changed.emit(self._channel_combo.itemData(idx) or 1)
+        )
+        channel_row.addWidget(self._channel_combo)
+        self._model_section.add_layout(channel_row)
+
         # Tier toggle (PRO / ULTRA)
         self._tier_label = QLabel("🏷️ Tier")
         self._tier_label.setObjectName("config_label")
@@ -119,6 +138,7 @@ class BuildSectionsMixin:
         self._selected_tier = self.DEFAULT_TIER
 
         tier_defs = [
+            ("FREE", "🆓", "FREE"),
             ("PRO", "⚡", "PRO"),
             ("ULTRA", "💎", "ULTRA"),
         ]

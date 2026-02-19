@@ -121,6 +121,14 @@ The **Project Manager** is responsible for:
 | New Workflow Loading State              | ✅ Done | UI/UX Dev   |
 | Cookie Get Thread Safety (Signal)       | ✅ Done | Backend Dev |
 | Bridge Log Noise Suppression            | ✅ Done | DevOps      |
+| Workflow Creation Freeze Fix (Signal)   | ✅ Done | Backend Dev |
+| Clear Workflow Button Reset             | ✅ Done | UI/UX Dev   |
+| Default Theme Dark + Captcha Extension  | ✅ Done | UI/UX Dev   |
+| Cookie Search + Load More Pagination    | ✅ Done | UI/UX Dev   |
+| Project Search + Sort + Load More       | ✅ Done | UI/UX Dev   |
+| Polished QSS (search/sort/loadmore)     | ✅ Done | UI/UX Dev   |
+| Client-Side Sort (STT/Updated)          | ✅ Done | UI/UX Dev   |
+| Disable Puppeteer Mode                  | ✅ Done | Backend Dev |
 
 ---
 
@@ -142,19 +150,19 @@ The **Project Manager** is responsible for:
 | ---------------------------------------------------- | ----- | ----------------------------------------------------------- |
 | `requirements.txt`                                   | —     | Dependencies                                                |
 | `main.py`                                            | 113   | App entry point — must launch without errors                |
-| `app/pages/image_creator_page/page_handlers.py`      | 1,130 | Queue ops, generation, polling, refresh, auth helpers       |
-| `app/pages/image_creator_page/image_creator_page.py` | 287   | Page init, layout, signal wiring                            |
-| `app/pages/image_creator_page/workers.py`            | 475   | GenerationWorker + RefUploadWorker + polling + download     |
-| `app/widgets/task_queue_table/task_queue_table.py`   | 1,019 | Queue display, sort, refresh, thumbnails, AI fix, filters   |
-| `app/widgets/config_panel/build_sections.py`         | 693   | Config panel UI (model, prompt, ref, output, poll, timeout) |
-| `app/widgets/config_panel/settings_handlers.py`      | 535   | Config persistence, ref mode, pipeline, retranslation       |
+| `app/pages/image_creator_page/page_handlers.py`      | 1,223 | Queue ops, generation, polling, refresh, auth helpers       |
+| `app/pages/image_creator_page/image_creator_page.py` | 290   | Page init, layout, signal wiring                            |
+| `app/pages/image_creator_page/workers.py`            | 474   | GenerationWorker + RefUploadWorker + polling + download     |
+| `app/widgets/task_queue_table/task_queue_table.py`   | 1,030 | Queue display, sort, refresh, thumbnails, AI fix, filters   |
+| `app/widgets/config_panel/build_sections.py`         | 713   | Config panel UI (model, prompt, ref, output, poll, timeout) |
+| `app/widgets/config_panel/settings_handlers.py`      | 544   | Config persistence, ref mode, pipeline, retranslation       |
 | `app/api/mock_api/queue_ops.py`                      | 199   | Queue CRUD + checkpoint persistence                         |
 | `app/api/mock_api/resource_ops.py`                   | 390   | Flow, cookie, token resource operations                     |
-| `app/api/workflow_api/workflow_api.py`               | 706   | Whisk video generation + polling + upload API client        |
+| `app/api/workflow_api/workflow_api.py`               | 707   | Whisk video generation + polling + upload API client        |
 | `app/api/models.py`                                  | 456   | Data model definitions (TaskItem, FlowItem, etc.)           |
-| `app/widgets/cookie_manager_dialog.py`               | 564   | Cookie CRUD, test & save, bridge sync, credit check         |
-| `app/main_window.py`                                 | 504   | Tab management, menu wiring, captcha lifecycle              |
-| `app/widgets/project_manager_dialog.py`              | 362   | Project CRUD, activate, cookie integration                  |
+| `app/widgets/cookie_manager_dialog.py`               | 672   | Cookie CRUD, search, pagination, bridge sync, credit check  |
+| `app/main_window.py`                                 | 508   | Tab management, menu wiring, captcha lifecycle              |
+| `app/widgets/project_manager_dialog.py`              | 552   | Project CRUD, search, sort, pagination, activate            |
 | `app/widgets/prompt_generator_dialog.py`             | 337   | AI prompt generator + saved prompts CRUD table              |
 | `app/api/cookie_api.py`                              | 348   | Cookie/API-key REST client                                  |
 | `app/pages/settings_page.py`                         | 324   | Settings page                                               |
@@ -162,15 +170,15 @@ The **Project Manager** is responsible for:
 | `app/widgets/styled_message_box.py`                  | 245   | Custom modal dialogs replacing QMessageBox                  |
 | `app/widgets/reference_image_grid.py`                | 221   | Reference image display grid                                |
 | `app/widgets/login_dialog.py`                        | 212   | Login modal with threaded API call + loading                |
-| `app/widgets/queue_toolbar.py`                       | 217   | Search, status filter, pagination, stats, cancel running    |
+| `app/widgets/queue_toolbar.py`                       | 162   | Search, status filter, pagination, stats, cancel running    |
 | `app/api/flow_api.py`                                | 194   | Flow/project REST client                                    |
-| `app/widgets/sidebar.py`                             | 195   | Collapsible sidebar navigation + branding                   |
-| `app/widgets/header.py`                              | 266   | Page title, user info, theme/lang/captcha toggles           |
-| `app/captcha_bridge_server.py`                       | 1,214 | HTTP server :18923 + cookie bridge + dashboard              |
-| `app/captcha_sidecar_manager.py`                     | 304   | QThread subprocess wrapper (Puppeteer mode)                 |
+| `app/widgets/sidebar.py`                             | 212   | Collapsible sidebar navigation + branding                   |
+| `app/widgets/header.py`                              | 259   | Page title, user info, theme/lang/captcha toggles           |
+| `app/captcha_bridge_server.py`                       | 1,282 | HTTP server :18923 + cookie bridge + dashboard              |
+| `app/captcha_sidecar_manager.py`                     | 304   | QThread subprocess wrapper (Puppeteer mode — disabled)      |
 | `pucaptcha/capture-sidecar.js`                       | 1,179 | Node.js Puppeteer sidecar (stdin/stdout protocol)           |
 | `app/prompt_normalizer.py`                           | 114   | Prompt sanitization (plain text + JSON)                     |
-| `app/preferences.py`                                 | 49    | Theme/language persistence                                  |
+| `app/preferences.py`                                 | 50    | Theme/language persistence                                  |
 | `app/widgets/toast_notification.py`                  | 77    | Non-blocking auto-dismiss notifications                     |
-| `app/theme/light.qss`                                | 1,695 | Light theme stylesheet                                      |
-| `app/theme/dark.qss`                                 | 1,696 | Dark theme stylesheet                                       |
+| `app/theme/light.qss`                                | 1,762 | Light theme stylesheet                                      |
+| `app/theme/dark.qss`                                 | 1,763 | Dark theme stylesheet                                       |

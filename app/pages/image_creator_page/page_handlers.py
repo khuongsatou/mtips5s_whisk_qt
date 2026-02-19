@@ -14,6 +14,18 @@ import time
 from PySide6.QtWidgets import QFileDialog, QApplication
 from PySide6.QtCore import QSettings, QTimer
 
+# Tier ↔ API paygate tier mapping
+TIER_TO_PAYGATE = {
+    "FREE": "PAYGATE_TIER_NOT_PAID",
+    "PRO": "PAYGATE_TIER_ONE",
+    "ULTRA": "PAYGATE_TIER_TWO",
+}
+PAYGATE_TO_TIER = {
+    "PAYGATE_TIER_NOT_PAID": "FREE",
+    "PAYGATE_TIER_ONE": "PRO",
+    "PAYGATE_TIER_TWO": "ULTRA",
+}
+
 from app.prompt_normalizer import PromptNormalizer
 from app.widgets.styled_message_box import StyledMessageBox
 
@@ -165,6 +177,17 @@ class PageHandlersMixin:
         """Handle reference images picked from file dialog."""
         pass
 
+    # ── Channel ───────────────────────────────────────────────────────
+
+    def _on_channel_changed(self, channel: int):
+        """Handle channel combo box change — persist per flow."""
+        self._channel = max(1, min(channel, 5))
+        logger.info(f"📡 Channel changed to {self._channel}")
+        if self._active_flow_id:
+            s = QSettings("Whisk", "Workflows")
+            s.setValue(f"flow_{self._active_flow_id}/channel", self._channel)
+            s.sync()
+
     # ── Workflow ──────────────────────────────────────────────────────
 
     def _on_workflow_cleared(self):
@@ -222,8 +245,17 @@ class PageHandlersMixin:
                 workflow_name = result["workflow_name"]
 
                 logger.info("✅ _apply_workflow_result: updating UI for success")
+
+                # Auto-set tier if detected
+                detected_tier = result.get("detected_tier", "")
+                tier_label = ""
+                if detected_tier:
+                    self._config.set_tier(detected_tier)
+                    tier_label = f"\n🏷️ Tier: {detected_tier}"
+                    logger.info(f"🏷️ Auto-set tier to {detected_tier}")
+
                 self._config.set_workflow_status(
-                    f"✅ Workflow created & linked!\n{workflow_id[:16]}..."
+                    f"✅ Workflow created & linked!{tier_label}\n{workflow_id[:16]}..."
                 )
                 self._config._workflow_btn.setText("✅ Linked")
                 self._config._workflow_btn.setEnabled(False)
@@ -329,8 +361,24 @@ class PageHandlersMixin:
 
         if link_resp.success:
             logger.info(f"🔗 Workflow linked: {workflow_id} → flow {self._active_flow_id}")
+
+            # Step 3: Detect account tier via credit status
+            detected_tier = ""
+            access_token = cookie.get("value", "")
+            if access_token:
+                try:
+                    credit_resp = self.workflow_api.get_credit_status(access_token)
+                    if credit_resp.success and credit_resp.data:
+                        paygate = credit_resp.data.get("userPaygateTier", "")
+                        credits = credit_resp.data.get("credits", 0)
+                        detected_tier = PAYGATE_TO_TIER.get(paygate, "PRO")
+                        logger.info(f"🏷️ Detected tier: {paygate} → {detected_tier} (credits: {credits})")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not detect tier: {e}")
+
             return {"success": True, "message": "OK",
-                    "workflow_id": workflow_id, "workflow_name": workflow_name}
+                    "workflow_id": workflow_id, "workflow_name": workflow_name,
+                    "detected_tier": detected_tier}
         else:
             logger.error(f"⚠️ Link failed: {link_resp.message}")
             return {"success": False, "message": f"Created but link failed:\n{link_resp.message}",
@@ -361,28 +409,30 @@ class PageHandlersMixin:
 
         # Request token
         prev_count = captcha_bridge.total_tokens_received
-        captcha_bridge.request_token(action="VIDEO_GENERATION", count=1)
-        logger.info("🔐 [Test] Requesting captcha token...")
+        ch = self._channel
+        captcha_bridge.request_token(action="VIDEO_GENERATION", count=1, channel=ch)
+        logger.info(f"🔐 [Test] Requesting captcha token on channel {ch}...")
 
         # Show waiting dialog
         from PySide6.QtWidgets import QProgressDialog
         progress = QProgressDialog(
-            "🔐 Đang chờ captcha token từ Extension...", "Hủy", 0, 30, self
+            f"🔐 Đang chờ captcha token (kênh {ch})...", "Hủy", 0, 30, self
         )
         progress.setWindowTitle("Test Captcha")
         progress.setMinimumWidth(350)
         progress.setModal(True)
         progress.show()
 
-        # Poll for token
+        # Poll for token from the correct channel queue
         token = ""
+        token_queue = captcha_bridge.get_token_queue(ch)
         for i in range(60):  # 30s at 0.5s intervals
             if progress.wasCanceled():
                 break
             progress.setValue(min(i // 2, 29))
             QApplication.processEvents()
             try:
-                token = captcha_bridge._token_queue.get_nowait()
+                token = token_queue.get_nowait()
                 if token:
                     break
             except Exception:
@@ -588,6 +638,7 @@ class PageHandlersMixin:
         # Start background worker
         poll_interval = self._config._poll_interval_spin.value()
         api_timeout = self._config._api_timeout_spin.value()
+        paygate_tier = TIER_TO_PAYGATE.get(self._config._selected_tier, "PAYGATE_TIER_ONE")
         self._worker = GenerationWorker(
             workflow_api=self.workflow_api,
             google_token=google_token,
@@ -600,6 +651,8 @@ class PageHandlersMixin:
             captcha_bridge=captcha_bridge,
             poll_interval=poll_interval,
             api_timeout=api_timeout,
+            channel=self._channel,
+            paygate_tier=paygate_tier,
             parent=self,
         )
         self._worker.task_progress.connect(self._on_task_progress)
@@ -1000,11 +1053,19 @@ class PageHandlersMixin:
         s = QSettings("Whisk", "Workflows")
         wf_id = s.value(f"flow_{flow_id}/workflow_id", "")
         wf_name = s.value(f"flow_{flow_id}/workflow_name", "")
+        saved_channel = int(s.value(f"flow_{flow_id}/channel", 1))
+
+        # Restore channel
+        self._channel = max(1, min(saved_channel, 5))
+        if hasattr(self, "_config") and hasattr(self._config, "_channel_combo"):
+            self._config._channel_combo.blockSignals(True)
+            self._config._channel_combo.setCurrentIndex(self._channel - 1)
+            self._config._channel_combo.blockSignals(False)
 
         if wf_id:
             self._workflow_id = wf_id
             self._workflow_name = wf_name
-            logger.info(f"📂 Workflow restored: flow={flow_id} → {wf_id}")
+            logger.info(f"📂 Workflow restored: flow={flow_id} → {wf_id} (ch {self._channel})")
             # Update config panel to show linked status
             if hasattr(self, "_config"):
                 self._config.set_workflow_status(
