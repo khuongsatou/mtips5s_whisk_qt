@@ -1,0 +1,34 @@
+# ============================================================
+# Whisk Desktop — Windows .exe build via PyInstaller + Wine
+# Uses 'script' command to provide PTY for Wine
+# ============================================================
+FROM --platform=linux/amd64 tobix/pywine:3.11
+
+ENV WINEDEBUG=-all
+ENV WINEPY="wine /opt/wineprefix/drive_c/Python/python.exe"
+
+WORKDIR /src
+
+# Copy project
+COPY . .
+
+# Create a helper script that runs commands under a pseudo-TTY
+RUN echo '#!/bin/bash' > /run_wine.sh && \
+    echo 'set -e' >> /run_wine.sh && \
+    echo 'export WINEDEBUG=-all' >> /run_wine.sh && \
+    echo '' >> /run_wine.sh && \
+    echo 'echo "=== Installing dependencies ==="' >> /run_wine.sh && \
+    echo '$WINEPY -m pip install --no-cache-dir PySide6 pyinstaller python-dotenv' >> /run_wine.sh && \
+    echo '' >> /run_wine.sh && \
+    echo 'echo "=== Building with PyInstaller ==="' >> /run_wine.sh && \
+    echo 'cd /src' >> /run_wine.sh && \
+    echo '$WINEPY -m PyInstaller build.spec --clean --noconfirm' >> /run_wine.sh && \
+    echo '' >> /run_wine.sh && \
+    echo 'echo "=== Build complete ==="' >> /run_wine.sh && \
+    echo 'ls -la /src/dist/WhiskDesktop/' >> /run_wine.sh && \
+    chmod +x /run_wine.sh
+
+# Use 'script' to provide a PTY so Wine doesn't crash with "Invalid handle"
+RUN script -qefc "bash /run_wine.sh" /dev/null
+
+CMD ["echo", "Build complete"]

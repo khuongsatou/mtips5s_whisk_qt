@@ -1,0 +1,28 @@
+# ============================================================
+# Whisk Desktop — Docker Compose for Windows PyInstaller build
+# ============================================================
+# Usage:
+#   docker compose -f scripts/docker-compose.pyinstaller.yml up --build
+#
+# Output:
+#   dist/WhiskDesktop/WhiskDesktop.exe
+# ============================================================
+
+services:
+  build-win-pyinstaller:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile.win.pyinstaller
+    platform: linux/amd64
+    volumes:
+      - ../dist:/output
+    environment:
+      - WINEDEBUG=-all
+    command: >
+      bash -c "
+        echo '✅ Copying PyInstaller output...' &&
+        cp -r /src/dist/WhiskDesktop /output/WhiskDesktop &&
+        echo '========================================' &&
+        echo ' Output: dist/WhiskDesktop/WhiskDesktop.exe' &&
+        echo '========================================'
+      "
