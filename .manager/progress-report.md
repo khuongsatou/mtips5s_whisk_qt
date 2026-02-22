@@ -1,119 +1,120 @@
-# 📊 Whisk Desktop — Báo Cáo Tiến Độ Dự Án
+# 📊 Whisk Desktop — Progress Report
 
-> **Ngày cập nhật**: 2026-02-19 12:30 (ICT)
-> **Phiên bản**: v2.x — Production
-
----
-
-## 🏆 Tổng Quan
-
-| Chỉ số            | Giá trị               |
-| ----------------- | --------------------- |
-| Tổng tính năng    | **131** (✅ 131 Done) |
-| File Python (app) | **64** files          |
-| Dòng code (app)   | **15,600** lines      |
-| File QSS (theme)  | **2** files           |
-| Dòng QSS          | **3,525** lines       |
-| File test         | **39** files          |
-| Dòng test         | **8,017** lines       |
-| Tổng unit tests   | **861** ✅ pass       |
-| Trạng thái build  | ✅ Stable             |
+> **Date:** 2026-02-19 13:00 (UTC+7)
+> **Reported by:** Project Manager
+> **App Version:** 1.0.0
 
 ---
 
-## 📈 Tiến Độ Tính Năng (100%)
+## 📈 Project Metrics
+
+| Metric             | Value                              | Δ vs Feb 17        |
+| ------------------ | ---------------------------------- | ------------------ |
+| **Source Files**   | 62 Python modules                  | +3                 |
+| **Source Lines**   | 12,318 lines                       | +429               |
+| **Test Files**     | 34 test modules                    | ±0                 |
+| **Test Lines**     | 7,177 lines                        | −12                |
+| **Total Tests**    | 794 ✅ all passing                 | −4 (removed stale) |
+| **QSS Themes**     | 1,695 (light) + 1,696 (dark) lines | ±0                 |
+| **i18n Keys**      | ~225 per language (en, vi)         | ±0                 |
+| **Total Features** | 107 completed                      | +3                 |
+
+---
+
+## 🚀 Recent Activity (Since Last Report — Feb 17)
+
+| #   | Commit    | Feature                                               |
+| --- | --------- | ----------------------------------------------------- |
+| 1   | `5caef89` | Update Nuitka Docker configs (experimental)           |
+| 2   | `5762ce5` | Add Nuitka build pipeline for native code protection  |
+| 3   | `19e5c55` | Move Run Selected / Run All buttons to search bar     |
+| 4   | `193e061` | Add sort buttons to STT, Task, Prompt, Message cols   |
+| 5   | `50767fb` | Integrate actual update API (POST /auth/check-update) |
+| 6   | `839e745` | Move search input and status filter above queue       |
+| 7   | `4494d39` | Add contact support button to update dialog           |
+| 8   | `7f6cf9a` | Add Software Update feature                           |
+
+---
+
+## 🏗️ Architecture Overview
 
 ```
-████████████████████████████████████████ 131/131 — 100%
-```
-
-### Phân bổ theo nhóm
-
-| Nhóm        | Số tính năng | Tỷ lệ |
-| ----------- | ------------ | ----- |
-| UI/UX Dev   | 62           | 47.3% |
-| Backend Dev | 56           | 42.7% |
-| DevOps      | 5            | 3.8%  |
-| i18n        | 1            | 0.8%  |
-| Mixed       | 7            | 5.3%  |
-
----
-
-## 🔧 Phiên Làm Việc Gần Nhất (19/02/2026)
-
-### Công việc hoàn thành trong phiên này:
-
-1. **Cookie Manager Dialog** — Thêm search bar (client-side filter by name) + Load More pagination (20/page) + count label (loaded/total)
-2. **Project Manager Dialog** — Thêm search bar + Sort buttons (STT ↑↓ / Updated ↑↓) client-side + Load More pagination (20/page) + STT column
-3. **QSS Styling** — Thêm styles cho search inputs, sort buttons, get cookie button trong cả dark/light theme
-4. **Sort Fix** — Chuyển sort từ server-side (không hoạt động) sang client-side (sort bởi ID hoặc updated_at)
-5. **Column Width Fix** — Mở rộng cookie dialog (900px) và project dialog (850px) để cột Name hiện đầy đủ
-6. **Disable Puppeteer** — Xóa puppeteer option khỏi menu, force extension mode on startup, không mở Chrome tab nữa
-
----
-
-## 🏗️ Kiến Trúc
-
-```
-app/
-├── api/               # API clients (cookie, flow, workflow, auth, mock)
-├── auth/              # Auth manager (login, session, token refresh)
-├── pages/             # UI pages (image_creator, settings, dashboard)
-├── widgets/           # Reusable widgets (dialogs, toolbar, sidebar, header)
-├── theme/             # QSS themes (dark.qss, light.qss)
-├── captcha_bridge_server.py  # Extension HTTP bridge (:18923)
-├── captcha_sidecar_manager.py # Puppeteer sidecar (disabled)
-├── preferences.py     # Theme/language persistence
-└── prompt_normalizer.py # Prompt sanitization
+whisk_desktop/                          v1.0.0
+├── main.py                             # Entry point
+├── app/
+│   ├── main_window.py                  # Tab management, menus (417 lines)
+│   ├── preferences.py                  # Theme/lang persistence
+│   ├── prompt_normalizer.py            # Prompt sanitization
+│   ├── auth/auth_manager.py            # Login, session, refresh (421 lines)
+│   ├── api/
+│   │   ├── workflow_api/               # Whisk image generation API
+│   │   ├── cookie_api.py               # Cookie REST client
+│   │   ├── flow_api.py                 # Flow/project REST client
+│   │   └── mock_api/                   # Local queue CRUD + checkpoint
+│   ├── pages/
+│   │   ├── image_creator_page/         # Main generation page
+│   │   │   ├── page_handlers.py        # Queue ops, generation (787 lines)
+│   │   │   ├── image_creator_page.py   # Layout, signals
+│   │   │   └── workers.py             # Thread pool workers
+│   │   └── settings_page.py            # Settings page
+│   ├── widgets/
+│   │   ├── task_queue_table/           # Queue display, sort, AI fix (796 lines)
+│   │   ├── config_panel/              # Config UI + handlers (1,072 lines)
+│   │   ├── queue_toolbar.py            # Search, filters, pagination
+│   │   ├── prompt_generator_dialog.py  # AI prompt generator + CRUD table
+│   │   ├── cookie_manager_dialog.py    # Cookie CRUD
+│   │   ├── project_manager_dialog.py   # Project CRUD
+│   │   ├── sidebar.py                 # Collapsible nav + branding
+│   │   └── header.py                  # Title, toggles, version
+│   ├── theme/
+│   │   ├── light.qss                  # Light theme (1,695 lines)
+│   │   ├── dark.qss                   # Dark theme (1,696 lines)
+│   │   └── theme_manager.py           # Theme switching
+│   └── i18n/
+│       ├── en.json                     # English translations
+│       ├── vi.json                     # Vietnamese translations
+│       └── translator.py              # i18n engine
+└── tests/                              # 34 test modules, 794 tests
 ```
 
 ---
 
-## 📁 Key Files (Top 15 by Size)
+## ✅ Quality Status
 
-| File                         | Dòng  | Chức năng                               |
-| ---------------------------- | ----- | --------------------------------------- |
-| `captcha_bridge_server.py`   | 1,282 | HTTP server + cookie bridge + dashboard |
-| `page_handlers.py`           | 1,223 | Queue ops, generation, polling          |
-| `task_queue_table.py`        | 1,030 | Queue display, sort, filters            |
-| `build_sections.py`          | 713   | Config panel UI                         |
-| `workflow_api.py`            | 707   | Video generation API client             |
-| `cookie_manager_dialog.py`   | 672   | Cookie CRUD + search + pagination       |
-| `project_manager_dialog.py`  | 552   | Project CRUD + search + sort            |
-| `settings_handlers.py`       | 544   | Config persistence                      |
-| `workers.py`                 | 474   | Generation + upload workers             |
-| `models.py`                  | 456   | Data models                             |
-| `auth_manager.py`            | 421   | Auth + token refresh                    |
-| `resource_ops.py`            | 390   | Mock resource operations                |
-| `cookie_api.py`              | 348   | Cookie REST client                      |
-| `prompt_generator_dialog.py` | 337   | AI prompt generator                     |
-| `settings_page.py`           | 324   | Settings page                           |
+| Check           | Result                   |
+| --------------- | ------------------------ |
+| **Unit Tests**  | 794/794 PASSED ✅        |
+| **App Launch**  | Clean startup ✅         |
+| **Dark Theme**  | Default, fully styled ✅ |
+| **Light Theme** | Fully styled ✅          |
+| **Vietnamese**  | Default language ✅      |
+| **English**     | Fully translated ✅      |
 
 ---
 
-## 🧪 Testing
+## 📦 Build & Distribution
 
-| Metric      | Value |
-| ----------- | ----- |
-| Total tests | 861   |
-| Pass rate   | 100%  |
-| Test files  | 39    |
-| Test LOC    | 8,017 |
-| Runtime     | ~13s  |
-
----
-
-## ⚠️ Rủi Ro & Lưu Ý
-
-| Rủi ro                             | Mức độ    | Ghi chú                                 |
-| ---------------------------------- | --------- | --------------------------------------- |
-| `captcha_bridge_server.py` quá lớn | 🟡 Medium | 1,282 dòng — nên tách thành modules nhỏ |
-| `page_handlers.py` phức tạp        | 🟡 Medium | 1,223 dòng — nhiều logic xử lý          |
-| Puppeteer mode disabled            | 🟢 Low    | Đã tắt, nhưng code vẫn còn trong repo   |
-| Test coverage chưa đo              | 🟡 Medium | Cần chạy coverage report để xác định    |
+| Platform | Method               | Status                               |
+| -------- | -------------------- | ------------------------------------ |
+| macOS    | Nuitka (native C)    | ✅ Working — native code protection  |
+| macOS    | .app + DMG           | ✅ Universal binary (x86_64 + arm64) |
+| Windows  | Nuitka via Docker    | ⚠️ Experimental (Wine incompatible)  |
+| Windows  | PyInstaller fallback | 🔲 Available as backup               |
 
 ---
 
-## ✅ Kết Luận
+## 🔮 Feature Backlog (Potential)
 
-Dự án đạt **100% tính năng hoàn thành** với 131 features, tất cả 861 tests pass. Phiên làm việc gần nhất tập trung vào cải thiện UX cho Cookie Manager và Project Manager (search, sort, pagination) và disable puppeteer mode.
+| Priority | Feature                          | Status      |
+| -------- | -------------------------------- | ----------- |
+| Low      | Real-time credit display refresh | Not started |
+| Low      | Batch export to CSV/Excel        | Not started |
+| Low      | Keyboard shortcuts               | Not started |
+| Low      | Drag-and-drop prompt reorder     | Not started |
+| Low      | Multi-project concurrent gen     | Not started |
+
+---
+
+## 📌 Current Blockers
+
+**None** — all 107 features are functional and all 794 tests are passing.

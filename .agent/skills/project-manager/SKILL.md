@@ -105,30 +105,9 @@ The **Project Manager** is responsible for:
 | Cancel Running Tasks (⏹)                | ✅ Done | UI/UX Dev   |
 | AI Prompt Generator (ChatGPT/Gemini)    | ✅ Done | UI/UX Dev   |
 | Saved Prompts CRUD (local JSON)         | ✅ Done | UI/UX Dev   |
-| Captcha Bridge Server (Extension HTTP)  | ✅ Done | Backend Dev |
-| Captcha Sidecar Manager (Puppeteer)     | ✅ Done | Backend Dev |
-| Captcha Bridge Landing Page (:18923)    | ✅ Done | UI/UX Dev   |
-| Video Status Polling (async)            | ✅ Done | Backend Dev |
-| Manual Refresh Button (🔄 per queue)    | ✅ Done | UI/UX Dev   |
-| Video Thumbnail Output (ffmpeg)         | ✅ Done | UI/UX Dev   |
-| Configurable Poll Interval (📡)         | ✅ Done | UI/UX Dev   |
-| Configurable API Timeout (⏱)            | ✅ Done | Backend Dev |
-| Video Download from fifeUrl             | ✅ Done | Backend Dev |
-| Cookie Bridge Sync (extension→bridge)   | ✅ Done | Backend Dev |
-| Separate Start Cookie Toggle            | ✅ Done | UI/UX Dev   |
-| Auto-Fetch Cookie on Dialog Open        | ✅ Done | Backend Dev |
-| Cookie Bridge Dashboard Docs            | ✅ Done | UI/UX Dev   |
-| New Workflow Loading State              | ✅ Done | UI/UX Dev   |
-| Cookie Get Thread Safety (Signal)       | ✅ Done | Backend Dev |
-| Bridge Log Noise Suppression            | ✅ Done | DevOps      |
-| Workflow Creation Freeze Fix (Signal)   | ✅ Done | Backend Dev |
-| Clear Workflow Button Reset             | ✅ Done | UI/UX Dev   |
-| Default Theme Dark + Captcha Extension  | ✅ Done | UI/UX Dev   |
-| Cookie Search + Load More Pagination    | ✅ Done | UI/UX Dev   |
-| Project Search + Sort + Load More       | ✅ Done | UI/UX Dev   |
-| Polished QSS (search/sort/loadmore)     | ✅ Done | UI/UX Dev   |
-| Client-Side Sort (STT/Updated)          | ✅ Done | UI/UX Dev   |
-| Disable Puppeteer Mode                  | ✅ Done | Backend Dev |
+| Software Update Dialog                  | ✅ Done | Backend Dev |
+| Sort Columns (STT/Task/Prompt/Message)  | ✅ Done | UI/UX Dev   |
+| Nuitka Build Pipeline (native C)        | ✅ Done | DevOps      |
 
 ---
 
@@ -146,39 +125,36 @@ The **Project Manager** is responsible for:
 
 ## Key Files to Monitor
 
-| File                                                 | Lines | Purpose                                                     |
-| ---------------------------------------------------- | ----- | ----------------------------------------------------------- |
-| `requirements.txt`                                   | —     | Dependencies                                                |
-| `main.py`                                            | 113   | App entry point — must launch without errors                |
-| `app/pages/image_creator_page/page_handlers.py`      | 1,223 | Queue ops, generation, polling, refresh, auth helpers       |
-| `app/pages/image_creator_page/image_creator_page.py` | 290   | Page init, layout, signal wiring                            |
-| `app/pages/image_creator_page/workers.py`            | 474   | GenerationWorker + RefUploadWorker + polling + download     |
-| `app/widgets/task_queue_table/task_queue_table.py`   | 1,030 | Queue display, sort, refresh, thumbnails, AI fix, filters   |
-| `app/widgets/config_panel/build_sections.py`         | 713   | Config panel UI (model, prompt, ref, output, poll, timeout) |
-| `app/widgets/config_panel/settings_handlers.py`      | 544   | Config persistence, ref mode, pipeline, retranslation       |
-| `app/api/mock_api/queue_ops.py`                      | 199   | Queue CRUD + checkpoint persistence                         |
-| `app/api/mock_api/resource_ops.py`                   | 390   | Flow, cookie, token resource operations                     |
-| `app/api/workflow_api/workflow_api.py`               | 707   | Whisk video generation + polling + upload API client        |
-| `app/api/models.py`                                  | 456   | Data model definitions (TaskItem, FlowItem, etc.)           |
-| `app/widgets/cookie_manager_dialog.py`               | 672   | Cookie CRUD, search, pagination, bridge sync, credit check  |
-| `app/main_window.py`                                 | 508   | Tab management, menu wiring, captcha lifecycle              |
-| `app/widgets/project_manager_dialog.py`              | 552   | Project CRUD, search, sort, pagination, activate            |
-| `app/widgets/prompt_generator_dialog.py`             | 337   | AI prompt generator + saved prompts CRUD table              |
-| `app/api/cookie_api.py`                              | 348   | Cookie/API-key REST client                                  |
-| `app/pages/settings_page.py`                         | 324   | Settings page                                               |
-| `app/auth/auth_manager.py`                           | 421   | Login, session, token refresh, logout, auto-recovery        |
-| `app/widgets/styled_message_box.py`                  | 245   | Custom modal dialogs replacing QMessageBox                  |
-| `app/widgets/reference_image_grid.py`                | 221   | Reference image display grid                                |
-| `app/widgets/login_dialog.py`                        | 212   | Login modal with threaded API call + loading                |
-| `app/widgets/queue_toolbar.py`                       | 162   | Search, status filter, pagination, stats, cancel running    |
-| `app/api/flow_api.py`                                | 194   | Flow/project REST client                                    |
-| `app/widgets/sidebar.py`                             | 212   | Collapsible sidebar navigation + branding                   |
-| `app/widgets/header.py`                              | 259   | Page title, user info, theme/lang/captcha toggles           |
-| `app/captcha_bridge_server.py`                       | 1,282 | HTTP server :18923 + cookie bridge + dashboard              |
-| `app/captcha_sidecar_manager.py`                     | 304   | QThread subprocess wrapper (Puppeteer mode — disabled)      |
-| `pucaptcha/capture-sidecar.js`                       | 1,179 | Node.js Puppeteer sidecar (stdin/stdout protocol)           |
-| `app/prompt_normalizer.py`                           | 114   | Prompt sanitization (plain text + JSON)                     |
-| `app/preferences.py`                                 | 50    | Theme/language persistence                                  |
-| `app/widgets/toast_notification.py`                  | 77    | Non-blocking auto-dismiss notifications                     |
-| `app/theme/light.qss`                                | 1,762 | Light theme stylesheet                                      |
-| `app/theme/dark.qss`                                 | 1,763 | Dark theme stylesheet                                       |
+| File                                                 | Lines | Purpose                                                   |
+| ---------------------------------------------------- | ----- | --------------------------------------------------------- |
+| `requirements.txt`                                   | —     | Dependencies                                              |
+| `main.py`                                            | 113   | App entry point — must launch without errors              |
+| `app/pages/image_creator_page/page_handlers.py`      | 787   | Queue ops, generation, auto-retry, download, auth helpers |
+| `app/pages/image_creator_page/image_creator_page.py` | 185   | Page init, layout, signal wiring                          |
+| `app/pages/image_creator_page/workers.py`            | 278   | GenerationWorker + RefUploadWorker threads                |
+| `app/widgets/task_queue_table/task_queue_table.py`   | 796   | Queue display, sort, AI fix, copy prompts, filters        |
+| `app/widgets/config_panel/build_sections.py`         | 584   | Config panel UI sections (model, prompt, ref, output)     |
+| `app/widgets/config_panel/settings_handlers.py`      | 488   | Config persistence, ref mode, pipeline, retranslation     |
+| `app/api/mock_api/queue_ops.py`                      | 199   | Queue CRUD + checkpoint persistence                       |
+| `app/api/mock_api/resource_ops.py`                   | 390   | Flow, cookie, token resource operations                   |
+| `app/api/workflow_api/workflow_api.py`               | 596   | Whisk image generation + upload API client                |
+| `app/api/models.py`                                  | 456   | Data model definitions (TaskItem, FlowItem, etc.)         |
+| `app/widgets/cookie_manager_dialog.py`               | 416   | Cookie CRUD, test & save flow, credit check               |
+| `app/main_window.py`                                 | 417   | Tab management, menu wiring, theme switching              |
+| `app/widgets/project_manager_dialog.py`              | 362   | Project CRUD, activate, cookie integration                |
+| `app/widgets/prompt_generator_dialog.py`             | 337   | AI prompt generator + saved prompts CRUD table            |
+| `app/api/cookie_api.py`                              | 348   | Cookie/API-key REST client                                |
+| `app/pages/settings_page.py`                         | 324   | Settings page                                             |
+| `app/auth/auth_manager.py`                           | 421   | Login, session, token refresh, logout, auto-recovery      |
+| `app/widgets/styled_message_box.py`                  | 245   | Custom modal dialogs replacing QMessageBox                |
+| `app/widgets/reference_image_grid.py`                | 221   | Reference image display grid                              |
+| `app/widgets/login_dialog.py`                        | 212   | Login modal with threaded API call + loading              |
+| `app/widgets/queue_toolbar.py`                       | 217   | Search, status filter, pagination, stats, cancel running  |
+| `app/api/flow_api.py`                                | 194   | Flow/project REST client                                  |
+| `app/widgets/sidebar.py`                             | 195   | Collapsible sidebar navigation + branding                 |
+| `app/widgets/header.py`                              | 165   | Page title, user info, theme/lang toggles, version        |
+| `app/prompt_normalizer.py`                           | 114   | Prompt sanitization (plain text + JSON)                   |
+| `app/preferences.py`                                 | 49    | Theme/language persistence                                |
+| `app/widgets/toast_notification.py`                  | 77    | Non-blocking auto-dismiss notifications                   |
+| `app/theme/light.qss`                                | 1,695 | Light theme stylesheet                                    |
+| `app/theme/dark.qss`                                 | 1,696 | Dark theme stylesheet                                     |
